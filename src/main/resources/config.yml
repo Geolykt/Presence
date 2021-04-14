@@ -1,0 +1,15 @@
+# All intervals are in ticks here
+# The interval between the refreshes of the scoreboard
+scoreboard-refresh: 20
+# The interval between natural claim ticking. This increases the presence of the player within a claim
+tick-interval: 1200
+# The interval between the checks of player travel in ticks. This check is responsible for announcing the player when it moved to a different claim.
+travel-interval: 20
+# The time between autosaves. Autosaves are asynchronously, however autosaves should be a bit behind ticking as otherwise there will be temporary deadlocks.
+autosave-interval: 6001
+# Multiplier of claim sizes. 1 makes the grid 1:1 with the chunk grid
+claim-size: 1
+# The chance of ticking nearby claims when ticking a claim. Ranges from 0.0 to 1.0
+tick-nearby-chance: 0.05
+
+enable-claim-fly: true

@@ -1,0 +1,15 @@
+name: Presence
+version: "1.0.0"
+
+authors: [Geolykt]
+
+main: de.geolykt.presence.PresenceBukkit
+api-version: '1.16'
+softdepend: [PlaceholderAPI]
+
+commands:
+  claims:
+    description: Claims and you; /claims help.
+    usage: /claims
+  claimFly:
+    aliases: [cfly]
