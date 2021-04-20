@@ -31,8 +31,12 @@ public class PresenceListener implements Listener {
     public void onBlockBreak(BlockBreakEvent e) {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
+        /* `>> 4` Has the same effect as `x / 16`; may god hail binary operators.
+        *  Interestingly enough, this trick even works for negative values,
+        *  which might be the case as `>>` is dependent on the sign extension
+        */
         int chunkY = block.getZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -40,7 +44,7 @@ public class PresenceListener implements Listener {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -51,7 +55,7 @@ public class PresenceListener implements Listener {
         }
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -62,19 +66,15 @@ public class PresenceListener implements Listener {
         Block placed = e.getBlock();
         int chunkX = placed.getX() >> 4;
         int chunkY = placed.getZ() >> 4;
-        e.setBuildable(data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setBuildable(data.canUse(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onBlockPlace(BlockPlaceEvent e) {
         Block placed = e.getBlockPlaced();
         int chunkX = placed.getX() >> 4;
-        /* `>> 4` Has the same effect as `x / 16`; may god hail binary operators.
-           Interestingly enough, this trick even works for negative values,
-           which might be the case as `>>` is dependent on the sign extension
-        */
         int chunkY = placed.getZ() >> 4; // This is something that I will get wrong one day
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -94,7 +94,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        e.setCancelled(!data.canUse(damager.getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -102,7 +102,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getRightClicked().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -110,7 +110,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -118,7 +118,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -126,6 +126,6 @@ public class PresenceListener implements Listener {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), chunkX, chunkY));
+        e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 }

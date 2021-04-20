@@ -7,7 +7,6 @@ The longer a chunk is populated by a player, the higher his score rises, if the 
 
    - Due to how the plugins works, right now everyone is able to claim every chunk (neutral claims will be added soon)
    - The plugin does not protected against explosions (this will be changed soon) and lava/water flows
-   - The plugin does not care about the world (yeah, defo need to fix that)
 
 
 ## Features:

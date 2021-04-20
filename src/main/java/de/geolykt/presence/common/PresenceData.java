@@ -42,6 +42,7 @@ public class PresenceData {
         // This is because `long | int` automatically casts the int to a long, where as the cast is by decimal value
         return (((long) x) << 32) | (y & 0xFFFFFFFFL);
     }
+
     /**
      * Size of the buckets in chunks.
      * The higher the value, the higher the granularity
@@ -49,12 +50,12 @@ public class PresenceData {
     private final int bucketSize;
     // Do not forget to synchronise what needs to be synchronised!
     private final HashMap<DataEntry, Integer> counts = new HashMap<>();
-    
-    private final HashMap<Long, Map.Entry<UUID, Integer>> leaders = new HashMap<>();
+
+    private final HashMap<Map.Entry<UUID, Long>, Map.Entry<UUID, Integer>> leaders = new HashMap<>();
 
     private final double recursiveTick;
 
-    private final HashMap<Long, Map.Entry<UUID, Integer>> successors = new HashMap<>();
+    private final HashMap<Map.Entry<UUID, Long>, Map.Entry<UUID, Integer>> successors = new HashMap<>();
 
     private final HashSet<TrustEntry> trusts = new HashSet<>();
 
@@ -67,48 +68,48 @@ public class PresenceData {
         trusts.add(new TrustEntry(truster, trusted));
     }
 
-    public boolean canUse(UUID player, int x, int y) {
+    public boolean canUse(UUID player, UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(hashPositions(x, y));
+        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashPositions(x, y)));
         return leader == null || leader.getKey().equals(player) || isTrusted(leader.getKey(), player);
     }
 
-    public boolean isOwnerOrTrusted(UUID player, int x, int y) {
+    public boolean isOwnerOrTrusted(UUID player, UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(hashPositions(x, y));
+        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashPositions(x, y)));
         return leader != null && (leader.getKey().equals(player) || isTrusted(leader.getKey(), player));
     }
 
-    public Map.Entry<UUID, Integer> getOwner(int x, int y) {
+    public Map.Entry<UUID, Integer> getOwner(UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        return leaders.get(hashPositions(x, y));
+        return leaders.get(Map.entry(world, hashPositions(x, y)));
     }
 
-    public int getPresence(UUID player, int x, int y) {
+    public int getPresence(UUID player, UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
         synchronized(counts) {
-            return counts.getOrDefault(new DataEntry(player, x, y), 0);
+            return counts.getOrDefault(new DataEntry(player, world, x, y), 0);
         }
     }
 
-    public Map.Entry<UUID, Integer> getSuccessor(int x, int y) {
+    public Map.Entry<UUID, Integer> getSuccessor(UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        return successors.get(hashPositions(x, y));
+        return successors.get(Map.entry(world, hashPositions(x, y)));
     }
 
     public boolean isTrusted(UUID truster, UUID trusted) {
@@ -208,27 +209,30 @@ public class PresenceData {
         }
         // Technically we could use the other streams to prevent other issues with the 
         ByteBuffer buffer = readers[useableStreams.get(0)];
-        if ((buffer.remaining() % 28) != 0) {
+        if ((buffer.remaining() % 44) != 0) {
             throw new IllegalStateException("The selected input stream has an invalid length.");
         }
         while (buffer.hasRemaining()) {
             // The actual deserialisation magic happens here
             long position = buffer.getLong();
-            long mostSigBits = buffer.getLong();
-            long leastSigBits = buffer.getLong();
-            UUID player = new UUID(mostSigBits, leastSigBits);
+            long mostSigBitsPlyr = buffer.getLong();
+            long leastSigBitsPlyr = buffer.getLong();
+            long mostSigBitsWorld = buffer.getLong();
+            long leastSigBitsWorld = buffer.getLong();
+            UUID player = new UUID(mostSigBitsPlyr, leastSigBitsPlyr);
+            UUID world = new UUID(mostSigBitsWorld, leastSigBitsWorld);
             int presence = buffer.getInt();
-            Map.Entry<UUID, Integer> leader = leaders.get(position);
+            Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, position));
             if (leader == null || leader.getValue() < presence) {
-                leaders.put(position, Map.entry(player, presence)); // Set the leader
+                leaders.put(Map.entry(world, position), Map.entry(player, presence)); // Set the leader
             } else {
-                Map.Entry<UUID, Integer> successor = successors.get(position);
+                Map.Entry<UUID, Integer> successor = successors.get(Map.entry(world, position));
                 if (successor == null || successor.getValue() < presence) {
                     // Update successor
-                    successors.put(position, Map.entry(player, presence));
+                    successors.put(Map.entry(world, position), Map.entry(player, presence));
                 }
             }
-            if (counts.put(new DataEntry(player, position), presence) != null) {
+            if (counts.put(new DataEntry(player, world, position), presence) != null) {
                 if (warnLogger != null) {
                     warnLogger.accept("Data array at index 0 defines multiple entries for the same player and chunk (data corruption likely)!");
                 }
@@ -347,14 +351,20 @@ public class PresenceData {
         ByteBuffer buffer;
         int len;
         synchronized (counts) {
-            len = 28 * counts.size();
+            len = 44 * counts.size();
             buffer = ByteBuffer.allocate(len);
             for (Map.Entry<DataEntry, Integer> entry : counts.entrySet()) {
                 long position = entry.getKey().pos;
-                long mostSigBits = entry.getKey().id.getMostSignificantBits();
-                long leastSigBits = entry.getKey().id.getLeastSignificantBits();
+                long playerMostSigBits = entry.getKey().id.getMostSignificantBits();
+                long playerLeastSigBits = entry.getKey().id.getLeastSignificantBits();
+                long worldMostSigBits = entry.getKey().world.getMostSignificantBits();
+                long worldLeastSigBits = entry.getKey().world.getLeastSignificantBits();
                 int presence = entry.getValue();
-                buffer.putLong(position).putLong(mostSigBits).putLong(leastSigBits).putInt(presence);
+
+                buffer.putLong(position)
+                    .putLong(playerMostSigBits).putLong(playerLeastSigBits)
+                    .putLong(worldMostSigBits).putLong(worldLeastSigBits)
+                    .putInt(presence);
             }
         }
         byte[] out = new byte[len + 8];
@@ -399,36 +409,37 @@ public class PresenceData {
      * Increases the presence of a given player by one.
      *
      * @param id A unique identifier that identifies a user.
+     * @param world The UUID of the world of the chunk
      * @param x The X-Coordinate of the chunk (in chunks)
      * @param y The Y-Coordinate of the chunk (in chunks)
      */
-    public void tick(UUID id, int x, int y) {
+    public void tick(UUID id, UUID world, int x, int y) {
         if (recursiveTick > 0.0 && recursiveTick > ThreadLocalRandom.current().nextDouble(1.0)) {
             int dx = ThreadLocalRandom.current().nextInt(-3, 4);
             int dy = ThreadLocalRandom.current().nextInt(-3, 4);
-            tick(id, dx + dx, dy + y);
+            tick(id, world, dx + dx, dy + y);
         }
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
         Long hashedPosition = hashPositions(x, y);
-        DataEntry entry = new DataEntry(id, hashedPosition);
+        DataEntry entry = new DataEntry(id, world, hashedPosition);
         Integer amount = counts.getOrDefault(entry, 0) + 1; // Prevent NPE by using getOrDefault
-        Map.Entry<UUID, Integer> leader = leaders.get(hashedPosition);
+        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashedPosition));
         if (leader == null) { // This is a previously untouched claim, set the leader
-            leaders.put(hashedPosition, Map.entry(id, amount));
+            leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
         } else if (leader.getValue() < amount) {
             if (leader.getKey().equals(id)) { // update current leader
-                leaders.put(hashedPosition, Map.entry(id, amount));
+                leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
             } else { // change leader and put the previous leader as the successor
-                successors.put(hashedPosition, leaders.put(hashedPosition, Map.entry(id, amount)));
+                successors.put(Map.entry(world, hashedPosition), leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount)));
             }
         } else {
-            Map.Entry<UUID, Integer> successor = successors.get(hashedPosition);
+            Map.Entry<UUID, Integer> successor = successors.get(Map.entry(world, hashedPosition));
             if (successor == null || successor.getValue() < amount) {
                 // Update successor
-                successors.put(hashedPosition, Map.entry(id, amount));
+                successors.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
             }
         }
         // update counts
@@ -440,29 +451,32 @@ public class PresenceData {
     static class DataEntry {
         private final UUID id;
         private final long pos;
+        private final UUID world;
 
-        public DataEntry(UUID player, int x, int y) {
+        public DataEntry(UUID player, UUID world, int x, int y) {
             id = player;
             pos = hashPositions(x,y);
+            this.world = world;
         }
 
-        public DataEntry(UUID player, long pos) {
+        public DataEntry(UUID player, UUID world, long pos) {
             id = player;
             this.pos = pos;
+            this.world = world;
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof DataEntry) {
                 DataEntry entry = (DataEntry) obj;
-                return entry.pos == pos && id.equals(entry.id);
+                return entry.pos == pos && id.equals(entry.id) && world.equals(entry.world);
             }
             return false;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pos);
+            return Objects.hash(id, pos, world);
         }
     }
 

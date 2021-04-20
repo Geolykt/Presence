@@ -52,37 +52,38 @@ public class PresencePlaceholders extends PlaceholderExpansion {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
+        UUID world = loc.getWorld().getUID();
         switch(value.toLowerCase(Locale.ROOT)) {
         case "claimowner": {
-            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(chunkX, chunkY);
+            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "none";
             }
             return Bukkit.getOfflinePlayer(owner.getKey()).getName();
         }
         case "ownerpresence": {
-            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(chunkX, chunkY);
+            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "0";
             }
             return owner.getValue().toString();
         }
         case "claimsuccessor": {
-            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(chunkX, chunkY);
+            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "none";
             }
             return Bukkit.getOfflinePlayer(successor.getKey()).getName();
         }
         case "successorpresence": {
-            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(chunkX, chunkY);
+            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "0";
             }
             return successor.getValue().toString();
         }
         case "playerpresence": {
-            return Integer.toString(DataSource.getData().getPresence(player.getUniqueId(), chunkX, chunkY));
+            return Integer.toString(DataSource.getData().getPresence(player.getUniqueId(), world, chunkX, chunkY));
         }
         default:
             // Invalid placeholder

@@ -39,7 +39,6 @@ import net.md_5.bungee.api.chat.TextComponent;
 
 public class PresenceBukkit extends JavaPlugin {
 
-    // TODO Fly-in claims
     // TODO dynmap integration
 
     private static final HashMap<UUID, UUID> PLAYER_LOCATIONS = new HashMap<>(); // For intelligent claim passing
@@ -64,10 +63,11 @@ public class PresenceBukkit extends JavaPlugin {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
+        UUID world = loc.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
         UUID playerUID = player.getUniqueId();
-        Map.Entry<UUID, Integer> leader = presenceData.getOwner(chunkX, chunkY);
-        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(chunkX, chunkY);
+        Map.Entry<UUID, Integer> leader = presenceData.getOwner(world, chunkX, chunkY);
+        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(loc.getWorld().getUID(), chunkX, chunkY);
         Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", ChatColor.YELLOW.toString() + ChatColor.BOLD + "Presence claims: ");
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.setRenderType(RenderType.INTEGER);
@@ -87,7 +87,7 @@ public class PresenceBukkit extends JavaPlugin {
         if (leader.getKey().equals(playerUID)) {
             ownPresence.setScore(leader.getValue());
         } else {
-            ownPresence.setScore(presenceData.getPresence(playerUID, chunkX, chunkY));
+            ownPresence.setScore(presenceData.getPresence(playerUID, world, chunkX, chunkY));
         }
         if (successor == null) {
             successorPresence.setScore(0);
@@ -229,7 +229,8 @@ public class PresenceBukkit extends JavaPlugin {
             Location loc = player.getLocation();
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
-            if (!DataSource.getData().isOwnerOrTrusted(player.getUniqueId(), chunkX, chunkY)) {
+            UUID world = loc.getWorld().getUID();
+            if (!DataSource.getData().isOwnerOrTrusted(player.getUniqueId(), world, chunkX, chunkY)) {
                 TextComponent component  = new TextComponent();
                 component.setColor(ChatColor.RED);
                 component.setText("You are not in your claim!");
@@ -313,7 +314,7 @@ public class PresenceBukkit extends JavaPlugin {
             PresenceData data = DataSource.getData();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 Location position = player.getLocation();
-                data.tick(player.getUniqueId(), position.getBlockX() >> 4, position.getBlockZ() >> 4);
+                data.tick(player.getUniqueId(), position.getWorld().getUID(), position.getBlockX() >> 4, position.getBlockZ() >> 4);
             }
         }, config.getClaimTickInterval(), config.getClaimTickInterval());
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
@@ -349,8 +350,9 @@ public class PresenceBukkit extends JavaPlugin {
                 Location loc = p.getLocation();
                 int chunkX = loc.getBlockX() >> 4;
                 int chunkY = loc.getBlockZ() >> 4;
+                UUID world = loc.getWorld().getUID();
                 UUID oldClaim = PLAYER_LOCATIONS.get(p.getUniqueId());
-                Map.Entry<UUID, Integer> newClaim = data.getOwner(chunkX, chunkY);
+                Map.Entry<UUID, Integer> newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
                     // now in the wild
                     if (oldClaim != null) {
@@ -430,6 +432,7 @@ public class PresenceBukkit extends JavaPlugin {
             Location loc = ((Player) sender).getLocation();
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
+            UUID world = loc.getWorld().getUID();
             UUID plyr = ((Player) sender).getUniqueId();
             PresenceData data = DataSource.getData();
             sender.sendMessage(ChatColor.GOLD + " + " + ChatColor.RESET + "= this "
@@ -444,7 +447,7 @@ public class PresenceBukkit extends JavaPlugin {
                         ln.append(ChatColor.GOLD + " +");
                         continue;
                     }
-                    Map.Entry<UUID, Integer> leader = data.getOwner(chunkX + xDelta, chunkY + yDelta);
+                    Map.Entry<UUID, Integer> leader = data.getOwner(world, chunkX + xDelta, chunkY + yDelta);
                     if (leader == null) {
                         ln.append(ChatColor.GRAY + " +");
                     } else if (leader.getKey().equals(plyr)) {
@@ -465,8 +468,9 @@ public class PresenceBukkit extends JavaPlugin {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
+        UUID world = loc.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
-        Map.Entry<UUID, Integer> leader = presenceData.getOwner(chunkX, chunkY);
+        Map.Entry<UUID, Integer> leader = presenceData.getOwner(world, chunkX, chunkY);
         Score claimownerPresence = SCOREBOARD_CLAIM_OWNER.get(playerUID);
         Score ownPresence = SCOREBOARD_CLAIM_SELF.get(playerUID);
         Score successorPresence = SCOREBOARD_CLAIM_SUCCESSOR.get(playerUID);
@@ -476,12 +480,12 @@ public class PresenceBukkit extends JavaPlugin {
             successorPresence.setScore(0);
             return;
         }
-        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(chunkX, chunkY);
+        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(world, chunkX, chunkY);
         claimownerPresence.setScore(leader.getValue());
         if (leader.getKey().equals(playerUID)) {
             ownPresence.setScore(leader.getValue());
         } else {
-            ownPresence.setScore(presenceData.getPresence(playerUID, chunkX, chunkY));
+            ownPresence.setScore(presenceData.getPresence(playerUID, world, chunkX, chunkY));
         }
         if (successor == null) {
             successorPresence.setScore(0);
