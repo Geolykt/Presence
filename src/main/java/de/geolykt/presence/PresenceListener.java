@@ -9,9 +9,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockCanBuildEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerLeashEntityEvent;
@@ -27,7 +27,7 @@ public class PresenceListener implements Listener {
 
     private final PresenceData data = DataSource.getData();
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent e) {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
@@ -39,7 +39,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockDamage(BlockDamageEvent e) {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
@@ -47,7 +47,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockInteract(PlayerInteractEvent e) {
         Block block = e.getClickedBlock();
         if (!e.hasBlock()) {
@@ -58,18 +58,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onBlockPlace(BlockCanBuildEvent e) {
-        if (!e.isBuildable()) { // Do not waste computation power
-            return;
-        }
-        Block placed = e.getBlock();
-        int chunkX = placed.getX() >> 4;
-        int chunkY = placed.getZ() >> 4;
-        e.setBuildable(data.canUse(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY));
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent e) {
         Block placed = e.getBlockPlaced();
         int chunkX = placed.getX() >> 4;
@@ -77,7 +66,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityHurt(EntityDamageByEntityEvent e) {
         Entity damager = e.getDamager();
         if (damager instanceof Projectile) {
@@ -97,7 +86,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityInteract(PlayerInteractEntityEvent e) {
         Location loc = e.getRightClicked().getLocation();
         int chunkX = loc.getBlockX() >> 4;
@@ -105,7 +94,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityLeash(PlayerLeashEntityEvent e) {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
@@ -113,7 +102,7 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityUnleash(PlayerUnleashEntityEvent e) {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
@@ -121,7 +110,18 @@ public class PresenceListener implements Listener {
         e.setCancelled(!data.canUse(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onPlayerBlockForm(EntityBlockFormEvent evt) {
+        Entity e = evt.getEntity();
+        if (e instanceof Player) {
+            Block block = evt.getBlock();
+            int chunkX = block.getX() >> 4;
+            int chunkY = block.getZ() >> 4;
+            evt.setCancelled(!data.canUse(e.getUniqueId(), block.getWorld().getUID(), chunkX, chunkY));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onSignInteract(SignChangeEvent e) {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
