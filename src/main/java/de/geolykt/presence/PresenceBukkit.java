@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -274,6 +276,9 @@ public class PresenceBukkit extends JavaPlugin {
     }
 
     private void removeFlight(Player player) {
+        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+            return;
+        }
         GRACEFUL_LAND.put(player.getUniqueId(), System.currentTimeMillis());
         player.setFlying(false);
         player.setAllowFlight(false);
@@ -347,10 +352,18 @@ public class PresenceBukkit extends JavaPlugin {
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
             PresenceData data = DataSource.getData();
             for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p == null) {
+                    continue;
+                }
                 Location loc = p.getLocation();
                 int chunkX = loc.getBlockX() >> 4;
                 int chunkY = loc.getBlockZ() >> 4;
-                UUID world = loc.getWorld().getUID();
+                World bukkitWorld = loc.getWorld();
+                if (bukkitWorld == null) {
+                    getLogger().warning("Presence Seizure.");
+                    return;
+                }
+                UUID world = bukkitWorld.getUID();
                 UUID oldClaim = PLAYER_LOCATIONS.get(p.getUniqueId());
                 Map.Entry<UUID, Integer> newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
@@ -432,7 +445,12 @@ public class PresenceBukkit extends JavaPlugin {
             Location loc = ((Player) sender).getLocation();
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
-            UUID world = loc.getWorld().getUID();
+            World bukkitWorld = loc.getWorld();
+            if (bukkitWorld == null) {
+                sender.sendMessage(ChatColor.RED + "Server is having a seizure.");
+                return;
+            }
+            UUID world = bukkitWorld.getUID();
             UUID plyr = ((Player) sender).getUniqueId();
             PresenceData data = DataSource.getData();
             sender.sendMessage(ChatColor.GOLD + " + " + ChatColor.RESET + "= this "
@@ -468,7 +486,12 @@ public class PresenceBukkit extends JavaPlugin {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        UUID world = loc.getWorld().getUID();
+        World bukkitWorld = loc.getWorld();
+        if (bukkitWorld == null) {
+            player.sendMessage(ChatColor.RED + "Server is having a seizure.");
+            return;
+        }
+        UUID world = bukkitWorld.getUID();
         PresenceData presenceData = DataSource.getData();
         Map.Entry<UUID, Integer> leader = presenceData.getOwner(world, chunkX, chunkY);
         Score claimownerPresence = SCOREBOARD_CLAIM_OWNER.get(playerUID);
