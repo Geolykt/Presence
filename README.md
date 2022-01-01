@@ -1,7 +1,7 @@
 Presence is a time and chunk based claiming plugin.
-The longer a chunk is populated by a player, the higher his score rises, if the player has the highest amount within that chunk, it will automatically gain access to the chunk.
 
-
+The score rises the longer a player is within a chunk. The player with the highest amount within a chunk will automatically gain access to the chunk,
+while others will be denied entry.
 
 ## Important to note quirks:
 
@@ -21,8 +21,9 @@ The longer a chunk is populated by a player, the higher his score rises, if the 
 
 ## Placeholder documentation:
 
-no required placeholder API exapnsion.
-All placeholders require the player scope to be known
+No Placeholder API exapnsion is required for placeholders and PAPI needn't be installed in order for this plugin to work,
+though using it might be benificial. All placeholders require the player scope to be known, so they may not
+always be usable.
 
   - **%presence_claimowner%** <br>
    Obtains the name of the owner of the chunk the player is currently standing on, returns "none" if not applicable
