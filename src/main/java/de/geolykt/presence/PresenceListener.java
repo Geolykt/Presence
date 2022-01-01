@@ -50,7 +50,7 @@ public class PresenceListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onBlockInteract(PlayerInteractEvent e) {
         Block block = e.getClickedBlock();
-        if (!e.hasBlock()) {
+        if (!e.hasBlock() || block == null) {
             return;
         }
         int chunkX = block.getX() >> 4;

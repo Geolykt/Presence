@@ -59,7 +59,11 @@ public class PresencePlaceholders extends PlaceholderExpansion {
             if (owner == null) {
                 return "none";
             }
-            return Bukkit.getOfflinePlayer(owner.getKey()).getName();
+            UUID ownerUUID = owner.getKey();
+            if (ownerUUID == null) {
+                throw new IllegalStateException();
+            }
+            return Bukkit.getOfflinePlayer(ownerUUID).getName();
         }
         case "ownerpresence": {
             Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
@@ -73,7 +77,11 @@ public class PresencePlaceholders extends PlaceholderExpansion {
             if (successor == null) {
                 return "none";
             }
-            return Bukkit.getOfflinePlayer(successor.getKey()).getName();
+            UUID successorUUID = successor.getKey();
+            if (successorUUID == null) {
+                throw new IllegalStateException();
+            }
+            return Bukkit.getOfflinePlayer(successorUUID).getName();
         }
         case "successorpresence": {
             Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);

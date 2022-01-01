@@ -30,14 +30,18 @@ import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.RenderType;
 import org.bukkit.scoreboard.Score;
 import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.ScoreboardManager;
+import org.jetbrains.annotations.NotNull;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.md_5.bungee.api.ChatColor;
 
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PresenceData;
-
-import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
 
 public class PresenceBukkit extends JavaPlugin {
 
@@ -53,11 +57,8 @@ public class PresenceBukkit extends JavaPlugin {
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
     private static final HashMap<UUID, Long> GRACEFUL_LAND = new HashMap<>();
 
-    private static final void sendActionbarMessage(Player p, String message, ChatColor color) {
-        TextComponent component = new TextComponent();
-        component.setText(message);
-        component.setColor(color);
-        p.spigot().sendMessage(ChatMessageType.ACTION_BAR, component);
+    private static final void sendActionbarMessage(@NotNull Player p, @NotNull String message, TextColor color) {
+        p.sendActionBar(Component.text(message, color));
     }
 
     void initSb(Player player, Scoreboard scoreboard) {
@@ -65,12 +66,12 @@ public class PresenceBukkit extends JavaPlugin {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        UUID world = loc.getWorld().getUID();
+        UUID world = player.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
         UUID playerUID = player.getUniqueId();
         Map.Entry<UUID, Integer> leader = presenceData.getOwner(world, chunkX, chunkY);
-        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(loc.getWorld().getUID(), chunkX, chunkY);
-        Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", ChatColor.YELLOW.toString() + ChatColor.BOLD + "Presence claims: ");
+        Map.Entry<UUID, Integer> successor = presenceData.getSuccessor(world, chunkX, chunkY);
+        Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", Component.text("Presence claims: ", NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.setRenderType(RenderType.INTEGER);
         Score claimownerPresence = objective.getScore("Owner presence");
@@ -99,11 +100,11 @@ public class PresenceBukkit extends JavaPlugin {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         switch (command.getName().toLowerCase(Locale.ROOT)) {
         case "claims":
             if (args.length == 0) {
-                args = new String[] {"help"}; // Because I could not be bothered to do this otherwise
+                args = new @NotNull String[] {"help"}; // Because I could not be bothered to do this otherwise
             }
             switch (args[0].toLowerCase(Locale.ROOT)) {
             case "help":
@@ -118,12 +119,13 @@ public class PresenceBukkit extends JavaPlugin {
                 if (sender instanceof Player) {
                     Player plyr = ((Player)sender);
                     UUID id = plyr.getUniqueId();
+                    ScoreboardManager mgr = Bukkit.getScoreboardManager();
                     if (SCOREBOARD_SUBSCRIBERS.containsKey(id)) {
                         SCOREBOARD_SUBSCRIBERS.remove(id);
                         sender.sendMessage(ChatColor.YELLOW + " Reset the scoreboard.");
-                        plyr.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+                        plyr.setScoreboard(mgr.getMainScoreboard());
                     } else {
-                        Scoreboard sb = Bukkit.getScoreboardManager().getNewScoreboard();
+                        Scoreboard sb = mgr.getNewScoreboard();
                         SCOREBOARD_SUBSCRIBERS.put(id, sb);
                         initSb(plyr, sb);
                         plyr.setScoreboard(sb);
@@ -136,136 +138,87 @@ public class PresenceBukkit extends JavaPlugin {
                 return true;
             case "trust": {
                 if (args.length == 1) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("You have to specify the target player!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("You have to specify the target player!", NamedTextColor.RED));
                     return true;
                 }
                 @SuppressWarnings("deprecation")
                 OfflinePlayer player = Bukkit.getOfflinePlayer(args[1]);
                 if (!player.hasPlayedBefore()) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("The selected player did not play on this server (yet)!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("The selected player did not play on this server (yet)!", NamedTextColor.RED));
                     return true;
                 }
                 if (!(sender instanceof Player)) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("You need to be a player for that!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("You need to be a player for that!", NamedTextColor.RED));
                     return true;
                 }
                 DataSource.getData().addTrust(((Player)sender).getUniqueId(), player.getUniqueId());
-                TextComponent component = new TextComponent();
-                component.setColor(ChatColor.GREEN);
-                component.setText("You are now trusting " + player.getName() + ".");
-                sender.spigot().sendMessage(component);
+                sender.sendMessage(Component.text("You are now trusting " + player.getName() + ".", NamedTextColor.GREEN));
                 return true;
             }
             case "untrust": {
                 if (args.length == 1) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("You have to specify the target player!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("You have to specify the target player!", NamedTextColor.RED));
                     return true;
                 }
-                @SuppressWarnings("deprecation")
-                OfflinePlayer player = Bukkit.getOfflinePlayer(args[1]);
-                if (!player.hasPlayedBefore()) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("The selected player did not play on this server (yet)!");
-                    sender.spigot().sendMessage(component);
+                OfflinePlayer player = Bukkit.getOfflinePlayerIfCached(args[1]);
+                if (player == null || !player.hasPlayedBefore()) {
+                    sender.sendMessage(Component.text("The selected player did not play on this server (or does not exist)!", NamedTextColor.RED));
                     return true;
                 }
                 if (!(sender instanceof Player)) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("You need to be a player for that!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("You need to be a player to be able to do that!", NamedTextColor.RED));
                     return true;
                 }
                 if (!DataSource.getData().isTrusted(((Player)sender).getUniqueId(), player.getUniqueId())) {
-                    TextComponent component  = new TextComponent();
-                    component.setColor(ChatColor.RED);
-                    component.setText("You are not yet trusting that player!");
-                    sender.spigot().sendMessage(component);
+                    sender.sendMessage(Component.text("You are not yet trusting that player!", NamedTextColor.RED));
                     return true;
                 }
                 DataSource.getData().removeTrust(((Player)sender).getUniqueId(), player.getUniqueId());
-                TextComponent component = new TextComponent();
-                component.setColor(ChatColor.GREEN);
-                component.setText("You are no longer trusting " + player.getName() + ".");
-                sender.spigot().sendMessage(component);
+                sender.sendMessage(Component.text("You are no longer trusting " + player.getName() + ".", NamedTextColor.GREEN));
                 return true;
             }
-            default: {
-                TextComponent component  = new TextComponent();
-                component.setColor(ChatColor.RED);
-                component.setText("Unknown subcommand!");
-                sender.spigot().sendMessage(component);
+            default:
+                sender.sendMessage(Component.text("Unknown subcommand.", NamedTextColor.RED));
                 return true;
-            }
             }
             // Break irrelevant as all other branches return
         case "claimfly":
             if (!DataSource.getConfiguration().allowsFlight()) {
-                TextComponent component  = new TextComponent();
-                component.setColor(ChatColor.RED);
-                component.setText("Flight in claims is not enabled!");
-                sender.spigot().sendMessage(component);
+                sender.sendMessage(Component.text("Flight in claims is not enabled.", NamedTextColor.RED));
                 return true;
             }
             if (!(sender instanceof Player)) {
-                TextComponent component  = new TextComponent();
-                component.setColor(ChatColor.RED);
-                component.setText("You must be a player for this!");
-                sender.spigot().sendMessage(component);
+                sender.sendMessage(Component.text("You need to be a player for this!", NamedTextColor.RED));
                 return true;
             }
             Player player = (Player) sender;
             Location loc = player.getLocation();
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
-            UUID world = loc.getWorld().getUID();
+            UUID world = player.getWorld().getUID();
             if (!DataSource.getData().isOwnerOrTrusted(player.getUniqueId(), world, chunkX, chunkY)) {
-                TextComponent component  = new TextComponent();
-                component.setColor(ChatColor.RED);
-                component.setText("You are not in your claim!");
-                sender.spigot().sendMessage(component);
+                sender.sendMessage(Component.text("You are not in your claim!", NamedTextColor.RED));
                 return true;
             }
             if (TEMPORARY_FLIGHT.remove(player.getUniqueId())) {
                 removeFlight(player);
-                TextComponent noFly  = new TextComponent();
-                noFly.setColor(ChatColor.GREEN);
-                noFly.setText("You are no longer flying!");
-                sender.spigot().sendMessage(noFly);
+                sender.sendMessage(Component.text("You are no longer flying!", NamedTextColor.GREEN));
                 return true;
             }
-            TextComponent flyingConfirm  = new TextComponent();
-            flyingConfirm.setColor(ChatColor.GREEN);
-            flyingConfirm.setText("You now able to fly within your claim!");
+            Component flyingConfirm = Component.text("You are not able to fly in your claim!", NamedTextColor.GREEN);
             if (args.length == 2 && args[1].equalsIgnoreCase("temporary")) {
                 SESSION_FLIGHT.remove(player.getUniqueId());
                 TEMPORARY_FLIGHT.add(player.getUniqueId());
                 player.setAllowFlight(true);
-                sender.spigot().sendMessage(flyingConfirm);
+                sender.sendMessage(flyingConfirm);
                 return true;
             }
             if (SESSION_FLIGHT.remove(player.getUniqueId())) {
                 removeFlight(player);
-                TextComponent noFly  = new TextComponent();
-                noFly.setColor(ChatColor.GREEN);
-                noFly.setText("You are no longer flying!");
-                sender.spigot().sendMessage(noFly);
+                sender.sendMessage(Component.text("You are no longer flying!", NamedTextColor.GREEN));
                 return true;
             }
-            sender.spigot().sendMessage(flyingConfirm);
+            sender.sendMessage(flyingConfirm);
             SESSION_FLIGHT.add(player.getUniqueId());
             player.setAllowFlight(true);
             return true;
@@ -318,12 +271,23 @@ public class PresenceBukkit extends JavaPlugin {
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
             PresenceData data = DataSource.getData();
             for (Player player : Bukkit.getOnlinePlayers()) {
+                if (player == null) {
+                    continue;
+                }
                 Location position = player.getLocation();
-                data.tick(player.getUniqueId(), position.getWorld().getUID(), position.getBlockX() >> 4, position.getBlockZ() >> 4);
+                World world = position.getWorld();
+                if (world == null) {
+                    continue;
+                }
+                data.tick(player.getUniqueId(), world.getUID(), position.getBlockX() >> 4, position.getBlockZ() >> 4);
             }
         }, config.getClaimTickInterval(), config.getClaimTickInterval());
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
             for (Player p : getServer().getOnlinePlayers()) {
+                if (p == null) {
+                    // Please the eclipse gods
+                    continue;
+                }
                 if (SCOREBOARD_SUBSCRIBERS.containsKey(p.getUniqueId())) {
                     updateSb(p);
                 }
@@ -333,8 +297,14 @@ public class PresenceBukkit extends JavaPlugin {
             @EventHandler
             public void playerJoin(PlayerJoinEvent evt) {
                 // reset scoreboard
-                if (SCOREBOARD_SUBSCRIBERS.containsKey(evt.getPlayer().getUniqueId())) {
-                    evt.getPlayer().setScoreboard(SCOREBOARD_CLAIM_OWNER.get(evt.getPlayer().getUniqueId()).getScoreboard());
+                Score s = SCOREBOARD_CLAIM_OWNER.get(evt.getPlayer().getUniqueId());
+                if (s != null) {
+                    Scoreboard sb = s.getScoreboard();
+                    if (sb != null) {
+                        evt.getPlayer().setScoreboard(sb);
+                    } else {
+                        SCOREBOARD_CLAIM_OWNER.remove(evt.getPlayer().getUniqueId());
+                    }
                 }
             }
 
@@ -373,7 +343,7 @@ public class PresenceBukkit extends JavaPlugin {
                         if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
                             removeFlight(p);
                         }
-                        sendActionbarMessage(p, "You are now in the wild.", ChatColor.GREEN);
+                        sendActionbarMessage(p, "You are now in the wild.", NamedTextColor.GREEN);
                         PLAYER_LOCATIONS.put(p.getUniqueId(), null);
                     } else {
                         // Same state -> do nothing
@@ -385,7 +355,7 @@ public class PresenceBukkit extends JavaPlugin {
                         // Same state -> do nothing
                     } else if (newClaimId.equals(p.getUniqueId())) {
                         // Entered the own claim
-                        sendActionbarMessage(p, "You are now entering your claim.", ChatColor.DARK_GREEN);
+                        sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
@@ -393,9 +363,9 @@ public class PresenceBukkit extends JavaPlugin {
                             if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
                                 removeFlight(p);
                             }
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", ChatColor.YELLOW);
+                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
                         } else {
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", ChatColor.DARK_BLUE);
+                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
                         }
                     }
                 } else {
@@ -404,7 +374,7 @@ public class PresenceBukkit extends JavaPlugin {
                     PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimId);
                     if (newClaimId.equals(p.getUniqueId())) {
                         // Entered the own claim
-                        sendActionbarMessage(p, "You are now entering your claim.", ChatColor.DARK_GREEN);
+                        sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
@@ -412,9 +382,9 @@ public class PresenceBukkit extends JavaPlugin {
                             if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
                                 removeFlight(p);
                             }
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", ChatColor.YELLOW);
+                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
                         } else {
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", ChatColor.DARK_BLUE);
+                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
                         }
                     }
                 }
@@ -426,7 +396,7 @@ public class PresenceBukkit extends JavaPlugin {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("claims")) {
             if (args.length > 1) {
                 return null;
@@ -476,7 +446,11 @@ public class PresenceBukkit extends JavaPlugin {
                         ln.append(ChatColor.RED + " +");
                     }
                 }
-                sender.sendMessage(ln.toString());
+                String line = ln.toString();
+                if (line == null) {
+                    throw new IllegalStateException();
+                }
+                sender.sendMessage(line);
             }
         }
     }
@@ -486,12 +460,7 @@ public class PresenceBukkit extends JavaPlugin {
         Location loc = player.getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        World bukkitWorld = loc.getWorld();
-        if (bukkitWorld == null) {
-            player.sendMessage(ChatColor.RED + "Server is having a seizure.");
-            return;
-        }
-        UUID world = bukkitWorld.getUID();
+        UUID world = player.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
         Map.Entry<UUID, Integer> leader = presenceData.getOwner(world, chunkX, chunkY);
         Score claimownerPresence = SCOREBOARD_CLAIM_OWNER.get(playerUID);
