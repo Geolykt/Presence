@@ -11,5 +11,11 @@ commands:
   claims:
     description: Claims and you; /claims help.
     usage: /claims
+    default: true
   claimFly:
     aliases: [cfly]
+    default: true
+  forceclaim:
+    description: OP-only command to claim stuff
+    usage: /forceclaim [amount]
+    default: op

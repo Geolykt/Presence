@@ -182,7 +182,7 @@ public class PresenceBukkit extends JavaPlugin {
                 return true;
             }
             // Break irrelevant as all other branches return
-        case "claimfly":
+        case "claimfly": {
             if (!DataSource.getConfiguration().allowsFlight()) {
                 sender.sendMessage(Component.text("Flight in claims is not enabled.", NamedTextColor.RED));
                 return true;
@@ -222,6 +222,18 @@ public class PresenceBukkit extends JavaPlugin {
             SESSION_FLIGHT.add(player.getUniqueId());
             player.setAllowFlight(true);
             return true;
+        }
+        case "forceclaim": {
+            Player p = (Player) sender;
+            UUID player = p.getUniqueId();
+            UUID world = p.getWorld().getUID();
+            int cx = p.getChunk().getX();
+            int cy = p.getChunk().getZ();
+            for (int i = 0; i < Integer.parseInt(args[0]); i++) {
+                DataSource.getData().tick(player, world, cx, cy);
+            }
+            return true;
+        }
         default:
             break;
         }
