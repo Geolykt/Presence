@@ -1,41 +1,32 @@
 package de.geolykt.presence.common;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
+import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
+import java.util.zip.CheckedOutputStream;
+import java.util.zip.Checksum;
+
+import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
 
 /**
  * Base data holder.
  */
 public class PresenceData {
-
-    protected static int getCommonArrayLength(byte[][] arrays) {
-        int commonLen = 0;
-        int commonAmt = 0;
-        for (int i = 0; i < arrays.length; i++) {
-            int amt = 0;
-            for (int j = 0; j < arrays.length; j++) {
-                if (arrays[j].length == arrays[i].length) {
-                    amt++;
-                }
-            }
-            if (amt > commonAmt) {
-                commonAmt = amt;
-                commonLen = arrays[i].length;
-            }
-        }
-        return commonLen;
-    }
 
     public static long hashPositions(int x, int y) {
         // We make use of (y & 0xFFFFFFFFL) as otherwise y values such as -1 would completely override the x value.
@@ -51,11 +42,11 @@ public class PresenceData {
     // Do not forget to synchronise what needs to be synchronised!
     private final HashMap<DataEntry, Integer> counts = new HashMap<>();
 
-    private final HashMap<Map.Entry<UUID, Long>, Map.Entry<UUID, Integer>> leaders = new HashMap<>();
+    private final HashMap<WorldPosition, Map.Entry<UUID, Integer>> leaders = new HashMap<>();
 
     private final double recursiveTick;
 
-    private final HashMap<Map.Entry<UUID, Long>, Map.Entry<UUID, Integer>> successors = new HashMap<>();
+    private final HashMap<WorldPosition, Map.Entry<UUID, Integer>> successors = new HashMap<>();
 
     private final HashSet<TrustEntry> trusts = new HashSet<>();
 
@@ -73,7 +64,7 @@ public class PresenceData {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashPositions(x, y)));
+        Map.Entry<UUID, Integer> leader = leaders.get(new WorldPosition(world, hashPositions(x, y)));
         return leader == null || leader.getKey().equals(player) || isTrusted(leader.getKey(), player);
     }
 
@@ -82,7 +73,7 @@ public class PresenceData {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashPositions(x, y)));
+        Map.Entry<UUID, Integer> leader = leaders.get(new WorldPosition(world, hashPositions(x, y)));
         return leader != null && (leader.getKey().equals(player) || isTrusted(leader.getKey(), player));
     }
 
@@ -91,7 +82,7 @@ public class PresenceData {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        return leaders.get(Map.entry(world, hashPositions(x, y)));
+        return leaders.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
     public int getPresence(UUID player, UUID world, int x, int y) {
@@ -100,7 +91,7 @@ public class PresenceData {
             y = Math.floorDiv(y, bucketSize);
         }
         synchronized(counts) {
-            return counts.getOrDefault(new DataEntry(player, world, x, y), 0);
+            return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
         }
     }
 
@@ -109,7 +100,7 @@ public class PresenceData {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        return successors.get(Map.entry(world, hashPositions(x, y)));
+        return successors.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
     public boolean isTrusted(UUID truster, UUID trusted) {
@@ -121,23 +112,11 @@ public class PresenceData {
             throw new RuntimeException("Loading from folder attempts to load a file!");
         }
         dataFolder.mkdirs();
-        ArrayList<File> stateFiles = new ArrayList<>();
         ArrayList<File> trustFiles = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
-            stateFiles.add(new File(dataFolder, "state_" + i + ".dat"));
             trustFiles.add(new File(dataFolder, "trust_" + i + ".dat"));
         }
-        ArrayList<Object> stateStreams = new ArrayList<>();
-        for (File f : stateFiles) {
-            if (f.exists()) {
-                try (FileInputStream fis = new FileInputStream(f)) {
-                    stateStreams.add(fis.readAllBytes());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        loadState(loggy, stateStreams.toArray(new byte[0][0]));
+
         ArrayList<Object> trustStreams = new ArrayList<>();
         for (File f : trustFiles) {
             if (f.exists()) {
@@ -148,94 +127,57 @@ public class PresenceData {
                 }
             }
         }
-        loadState(loggy, trustStreams.toArray(new byte[0][0]));
+        loadTrust(loggy, trustStreams.toArray(new byte[0][0]));
+
+        loadStates: {
+            File stateFile = new File(dataFolder, "statedb.dat");
+            if (!stateFile.exists()) {
+                break loadStates;
+            }
+            try (FileInputStream fis = new FileInputStream(stateFile)) {
+                loadState(fis);
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Unable to load state db.", e);
+            }
+        }
+    }
+
+    protected void loadStateChecked(InputStream in) throws IOException {
+        long checksum = ByteBuffer.wrap(in.readNBytes(8)).getLong();
+        Adler32 adler32Checksum = new Adler32();
+        CheckedInputStream checkedIn = new CheckedInputStream(in, adler32Checksum);
+        loadState(checkedIn);
+        if (adler32Checksum.getValue() != checksum) {
+            throw new IOException("State invalid as it breaks the checksum.");
+        }
     }
 
 
-    /**
-     * Loads the data of several streams.
-     * The implementation can make use of multiple algorithms to verify the integrity of the streams
-     * and use the stream with the best integrity.
-     * The default implementation however just uses a crude checksum and length verification by looking
-     * at the most common length of the streams.
-     *
-     * @param warnLogger Our crude replacement to be logger independent. All warnings will call this consumer.
-     * @param streams The input data arrays
-     */
-    protected void loadState(Consumer<String> warnLogger, byte[]... streams) {
-        if (streams.length == 0) {
-            if (warnLogger != null) {
-                warnLogger.accept("No input data to load!");
-            }
-            return;
-        }
-        ArrayList<Integer> useableStreams = new ArrayList<>();
-        int commonLength = getCommonArrayLength(streams);
-        if (commonLength < 9) {
-            return;
-        }
-        for (int i = 0; i < streams.length; i++) {
-            if (streams[i].length == commonLength) {
-                useableStreams.add(i);
+    protected void loadState(InputStream in) throws IOException {
+        DataInputStream dataIn = new DataInputStream(in);
+
+        while (dataIn.read() > 0) {
+            int value = dataIn.readInt();
+            UUID world = new UUID(dataIn.readLong(), dataIn.readLong());
+            UUID player = new UUID(dataIn.readLong(), dataIn.readLong());
+            long pos = dataIn.readLong();
+
+            WorldPosition worldPos = new WorldPosition(world, pos);
+            DataEntry entry = new DataEntry(player, worldPos);
+
+            Map.Entry<UUID, Integer> leader = leaders.get(worldPos);
+            if (leader == null || leader.getValue() < value) {
+                leaders.put(worldPos, Map.entry(player, value)); // Set the leader
             } else {
-                if (warnLogger != null) {
-                    warnLogger.accept("Data array at index " + i + " does not match the common length (possible corruption)!");
-                }
-            }
-        }
-        ByteBuffer[] readers = new ByteBuffer[streams.length];
-        ArrayList<Integer> toRemove = new ArrayList<>();
-        for (Integer i : useableStreams) {
-            ByteBuffer buffer = ByteBuffer.wrap(streams[i]);
-            long definedChecksum = buffer.getLong();
-            long calculatedChecksum = 0;
-            while (buffer.hasRemaining()) {
-                calculatedChecksum += buffer.get();
-            }
-            if (definedChecksum != calculatedChecksum) {
-                toRemove.add(i);
-                if (warnLogger != null) {
-                    warnLogger.accept("Data array at index " + i + " does not match the expected checksum (data corrupted)!");
-                }
-            } else {
-                readers[i] = ByteBuffer.wrap(streams[i], 8, commonLength - 8);
-            }
-        }
-        toRemove.forEach(useableStreams::remove);
-        toRemove = null; // To prevent accidental reuse
-        if (useableStreams.size() == 0) {
-            throw new IllegalStateException("All input streams were invalidated due to common length checks and the data checksum."
-                    + "Corruption of the data streams is likely.");
-        }
-        // Technically we could use the other streams to prevent other issues with the 
-        ByteBuffer buffer = readers[useableStreams.get(0)];
-        if ((buffer.remaining() % 44) != 0) {
-            throw new IllegalStateException("The selected input stream has an invalid length.");
-        }
-        while (buffer.hasRemaining()) {
-            // The actual deserialisation magic happens here
-            long position = buffer.getLong();
-            long mostSigBitsPlyr = buffer.getLong();
-            long leastSigBitsPlyr = buffer.getLong();
-            long mostSigBitsWorld = buffer.getLong();
-            long leastSigBitsWorld = buffer.getLong();
-            UUID player = new UUID(mostSigBitsPlyr, leastSigBitsPlyr);
-            UUID world = new UUID(mostSigBitsWorld, leastSigBitsWorld);
-            int presence = buffer.getInt();
-            Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, position));
-            if (leader == null || leader.getValue() < presence) {
-                leaders.put(Map.entry(world, position), Map.entry(player, presence)); // Set the leader
-            } else {
-                Map.Entry<UUID, Integer> successor = successors.get(Map.entry(world, position));
-                if (successor == null || successor.getValue() < presence) {
+                Map.Entry<UUID, Integer> successor = successors.get(worldPos);
+                if (successor == null || successor.getValue() < value) {
                     // Update successor
-                    successors.put(Map.entry(world, position), Map.entry(player, presence));
+                    successors.put(worldPos, Map.entry(player, value));
                 }
             }
-            if (counts.put(new DataEntry(player, world, position), presence) != null) {
-                if (warnLogger != null) {
-                    warnLogger.accept("Data array at index 0 defines multiple entries for the same player and chunk (data corruption likely)!");
-                }
+            if (counts.put(entry, value) != null) {
+                throw new IllegalStateException("Input defined multiple entries for the same player and chunk (data curruption likely)");
             }
         }
     }
@@ -313,6 +255,24 @@ public class PresenceData {
         }
     }
 
+    protected static int getCommonArrayLength(byte[][] arrays) {
+        int commonLen = 0;
+        int commonAmt = 0;
+        for (int i = 0; i < arrays.length; i++) {
+            int amt = 0;
+            for (int j = 0; j < arrays.length; j++) {
+                if (arrays[j].length == arrays[i].length) {
+                    amt++;
+                }
+            }
+            if (amt > commonAmt) {
+                commonAmt = amt;
+                commonLen = arrays[i].length;
+            }
+        }
+        return commonLen;
+    }
+
     public void removeTrust(UUID truster, UUID trusted) {
         trusts.remove(new TrustEntry(truster, trusted));
     }
@@ -323,20 +283,28 @@ public class PresenceData {
             throw new RuntimeException("Saving to folder attempts to save in file!");
         }
         dataFolder.mkdirs();
-        ArrayList<File> stateFiles = new ArrayList<>();
         ArrayList<File> trustFiles = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
-            stateFiles.add(new File(dataFolder, "state_" + i + ".dat"));
             trustFiles.add(new File(dataFolder, "trust_" + i + ".dat"));
         }
-        byte[] data = saveStateToArray();
-        for (File file : stateFiles) {
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                fos.write(data);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+
+        FastByteArrayOutputStream byteOut = new FastByteArrayOutputStream(counts.size() * 50);
+        Checksum checksum = new Adler32();
+        CheckedOutputStream checkedOut = new CheckedOutputStream(byteOut, checksum);
+
+        try {
+            saveStateToStream(checkedOut);
+        } catch (IOException e1) {
+            throw new IllegalStateException("Fatal exception while serializing state.");
         }
+
+        try (FileOutputStream fos = new FileOutputStream(new File(dataFolder, "statedb.dat"))) {
+            fos.write(ByteBuffer.allocate(8).putLong(checksum.getValue()).array());
+            fos.write(byteOut.array, 0, (int) byteOut.position());
+        } catch (IOException e) {
+            throw new IllegalStateException("Fatal exception while saving state.");
+        }
+
         byte[] trust = saveTrustToArray();
         for (File file : trustFiles) {
             try (FileOutputStream fos = new FileOutputStream(file)) {
@@ -347,36 +315,20 @@ public class PresenceData {
         }
     }
 
-    protected byte[] saveStateToArray() {
-        ByteBuffer buffer;
-        int len;
+    protected void saveStateToStream(OutputStream out) throws IOException {
+        DataOutputStream dataOut = new DataOutputStream(out);
         synchronized (counts) {
-            len = 44 * counts.size();
-            buffer = ByteBuffer.allocate(len);
             for (Map.Entry<DataEntry, Integer> entry : counts.entrySet()) {
-                long position = entry.getKey().pos;
-                long playerMostSigBits = entry.getKey().id.getMostSignificantBits();
-                long playerLeastSigBits = entry.getKey().id.getLeastSignificantBits();
-                long worldMostSigBits = entry.getKey().world.getMostSignificantBits();
-                long worldLeastSigBits = entry.getKey().world.getLeastSignificantBits();
-                int presence = entry.getValue();
-
-                buffer.putLong(position)
-                    .putLong(playerMostSigBits).putLong(playerLeastSigBits)
-                    .putLong(worldMostSigBits).putLong(worldLeastSigBits)
-                    .putInt(presence);
+                dataOut.write(1);
+                dataOut.writeInt(entry.getValue().intValue());
+                DataEntry de = entry.getKey();
+                dataOut.writeLong(de.worldPos.world().getMostSignificantBits());
+                dataOut.writeLong(de.worldPos.world().getLeastSignificantBits());
+                dataOut.writeLong(de.id.getMostSignificantBits());
+                dataOut.writeLong(de.id.getLeastSignificantBits());
+                dataOut.writeLong(de.worldPos.chunkPos());
             }
         }
-        byte[] out = new byte[len + 8];
-        byte[] raw = buffer.array();
-        System.arraycopy(raw, 0, out, 8, len);
-        long checksumValue = 0;
-        for (int i = 0; i < raw.length; i++) {
-            checksumValue += raw[i];
-        }
-        byte[] checksum = ByteBuffer.allocate(8).putLong(checksumValue).array();
-        System.arraycopy(checksum, 0, out, 0, 8);
-        return out;
     }
 
     protected byte[] saveTrustToArray() {
@@ -417,29 +369,31 @@ public class PresenceData {
         if (recursiveTick > 0.0 && recursiveTick > ThreadLocalRandom.current().nextDouble(1.0)) {
             int dx = ThreadLocalRandom.current().nextInt(-3, 4);
             int dy = ThreadLocalRandom.current().nextInt(-3, 4);
-            tick(id, world, dx + dx, dy + y);
+            tick(id, world, dx + x, dy + y);
         }
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Long hashedPosition = hashPositions(x, y);
-        DataEntry entry = new DataEntry(id, world, hashedPosition);
-        Integer amount = counts.getOrDefault(entry, 0) + 1; // Prevent NPE by using getOrDefault
-        Map.Entry<UUID, Integer> leader = leaders.get(Map.entry(world, hashedPosition));
+        long hashedPosition = hashPositions(x, y);
+        WorldPosition worldPos = new WorldPosition(world, hashedPosition);
+        DataEntry entry = new DataEntry(id, worldPos);
+        int amount = counts.getOrDefault(entry, 0) + 1; // Prevent NPE by using getOrDefault
+
+        Map.Entry<UUID, Integer> leader = leaders.get(worldPos);
         if (leader == null) { // This is a previously untouched claim, set the leader
-            leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
+            leaders.put(worldPos, Map.entry(id, amount));
         } else if (leader.getValue() < amount) {
             if (leader.getKey().equals(id)) { // update current leader
-                leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
+                leaders.put(worldPos, Map.entry(id, amount));
             } else { // change leader and put the previous leader as the successor
-                successors.put(Map.entry(world, hashedPosition), leaders.put(Map.entry(world, hashedPosition), Map.entry(id, amount)));
+                successors.put(worldPos, leaders.put(worldPos, Map.entry(id, amount)));
             }
         } else {
-            Map.Entry<UUID, Integer> successor = successors.get(Map.entry(world, hashedPosition));
+            Map.Entry<UUID, Integer> successor = successors.get(worldPos);
             if (successor == null || successor.getValue() < amount) {
                 // Update successor
-                successors.put(Map.entry(world, hashedPosition), Map.entry(id, amount));
+                successors.put(worldPos, Map.entry(id, amount));
             }
         }
         // update counts
@@ -450,33 +404,25 @@ public class PresenceData {
 
     static class DataEntry {
         private final UUID id;
-        private final long pos;
-        private final UUID world;
+        private final WorldPosition worldPos;
 
-        public DataEntry(UUID player, UUID world, int x, int y) {
-            id = player;
-            pos = hashPositions(x,y);
-            this.world = world;
-        }
-
-        public DataEntry(UUID player, UUID world, long pos) {
-            id = player;
-            this.pos = pos;
-            this.world = world;
+        public DataEntry(UUID player, WorldPosition worldPos) {
+            this.id = player;
+            this.worldPos = worldPos;
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof DataEntry) {
                 DataEntry entry = (DataEntry) obj;
-                return entry.pos == pos && id.equals(entry.id) && world.equals(entry.world);
+                return id.equals(entry.id) && worldPos.equals(entry.worldPos);
             }
             return false;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pos, world);
+            return id.hashCode() ^ worldPos.hashCode();
         }
     }
 

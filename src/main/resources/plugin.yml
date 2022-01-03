@@ -1,10 +1,10 @@
 name: Presence
-version: "1.0.0"
+version: ${project.version}
 
 authors: [Geolykt]
 
 main: de.geolykt.presence.PresenceBukkit
-api-version: '1.16'
+api-version: '1.18'
 softdepend: [PlaceholderAPI]
 
 commands:

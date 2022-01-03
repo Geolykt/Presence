@@ -57,6 +57,8 @@ public class PresenceBukkit extends JavaPlugin {
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
     private static final HashMap<UUID, Long> GRACEFUL_LAND = new HashMap<>();
 
+    private boolean successfullLoad = false;
+
     private static final void sendActionbarMessage(@NotNull Player p, @NotNull String message, TextColor color) {
         p.sendActionBar(Component.text(message, color));
     }
@@ -251,7 +253,9 @@ public class PresenceBukkit extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        DataSource.getData().save(getDataFolder());
+        if (successfullLoad) {
+            DataSource.getData().save(getDataFolder());
+        }
     }
 
     @Override
@@ -268,7 +272,16 @@ public class PresenceBukkit extends JavaPlugin {
                 bukkitCfg.getBoolean("enable-claim-fly"));
         DataSource.setConfiguration(config);
         DataSource.setData(new PresenceData(config.getClaimSize(), config.getTickNearbyChunksChance()));
-        DataSource.getData().load(getLogger()::warning, getDataFolder());
+
+        try {
+            DataSource.getData().load(getLogger()::warning, getDataFolder());
+        } catch (Throwable t) {
+            t.printStackTrace();
+            getSLF4JLogger().error("Failed to load plugin data. Due to the importance of this plugin on the server, the server"
+                    + " is forcefully shut down.");
+            Bukkit.shutdown();
+            throw new IllegalStateException("Plugin data cannot be loaded.", t);
+        }
 
         // Register plugin integrations
         try {
@@ -405,6 +418,8 @@ public class PresenceBukkit extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
             DataSource.getData().save(getDataFolder());
         }, config.getAutosaveInterval(), config.getAutosaveInterval());
+
+        successfullLoad = true;
     }
 
     @Override
