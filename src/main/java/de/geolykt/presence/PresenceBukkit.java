@@ -230,6 +230,9 @@ public class PresenceBukkit extends JavaPlugin {
             return true;
         }
         case "forceclaim": {
+            if (!sender.isOp()) {
+                return true;
+            }
             Player p = (Player) sender;
             UUID player = p.getUniqueId();
             UUID world = p.getWorld().getUID();
