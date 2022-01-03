@@ -134,7 +134,7 @@ public class PresenceData {
                 break loadStates;
             }
             try (FileInputStream fis = new FileInputStream(stateFile)) {
-                loadState(fis);
+                loadStateChecked(fis);
             } catch (IOException e) {
                 e.printStackTrace();
                 throw new IllegalStateException("Unable to load state db.", e);
