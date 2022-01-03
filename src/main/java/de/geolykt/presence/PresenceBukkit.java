@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
@@ -34,10 +36,11 @@ import org.bukkit.scoreboard.ScoreboardManager;
 import org.jetbrains.annotations.NotNull;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.md_5.bungee.api.ChatColor;
 
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
@@ -52,6 +55,7 @@ public class PresenceBukkit extends JavaPlugin {
     private static final Map<UUID, Score> SCOREBOARD_CLAIM_SELF = new HashMap<>();
     private static final Map<UUID, Score> SCOREBOARD_CLAIM_SUCCESSOR = new HashMap<>();
     private static final Map<UUID, Scoreboard> SCOREBOARD_SUBSCRIBERS = new HashMap<>();
+    private static final Map<UUID, String> USER_NAME_CACHE = new ConcurrentHashMap<>();
 
     private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>();
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
@@ -434,49 +438,79 @@ public class PresenceBukkit extends JavaPlugin {
         return null;
     }
 
+    @NotNull
+    private String getPlayerName(@NotNull UUID player) {
+        String cname = USER_NAME_CACHE.get(player);
+        if (cname != null) {
+            return cname;
+        }
+
+        OfflinePlayer offlinePlayer =  Bukkit.getOfflinePlayer(player);
+
+        String name = offlinePlayer.getName();
+        if (name == null) {
+            name = "unknown";
+        }
+        USER_NAME_CACHE.put(player, name);
+        return name;
+    }
+
     private void printMap(CommandSender sender) {
-        // TODO do this with adventure,
-        // maybe allow seeing the user via the hover event (this would be a bit stupid though, or no)?
-        if (sender instanceof Player) {
-            Location loc = ((Player) sender).getLocation();
+        if (sender instanceof Player player) {
+            Location loc = player.getLocation();
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
-            World bukkitWorld = loc.getWorld();
-            if (bukkitWorld == null) {
-                sender.sendMessage(ChatColor.RED + "Server is having a seizure.");
-                return;
-            }
-            UUID world = bukkitWorld.getUID();
-            UUID plyr = ((Player) sender).getUniqueId();
+            UUID world = player.getWorld().getUID();
+            UUID plyr = player.getUniqueId();
             PresenceData data = DataSource.getData();
-            sender.sendMessage(ChatColor.GOLD + " + " + ChatColor.RESET + "= this "
-                    + ChatColor.GRAY + " + " + ChatColor.RESET + "= unclaimed "
-                    + ChatColor.DARK_GREEN + " + " + ChatColor.RESET + "= yours "
-                    + ChatColor.DARK_BLUE + " + " + ChatColor.RESET + "= trusted "
-                    + ChatColor.RED + " + " + ChatColor.RESET + "= others");
-            for (int yDelta = -4; yDelta < 5; yDelta++) {
-                StringBuilder ln = new StringBuilder(80);
+
+            for (int yDelta = -5; yDelta < 5; yDelta++) {
+                Component comp = Component.empty();
                 for (int xDelta = -14; xDelta < 14; xDelta++) {
-                    if (xDelta == 0 && yDelta == 0) {
-                        ln.append(ChatColor.GOLD + " +");
-                        continue;
-                    }
                     Map.Entry<UUID, Integer> leader = data.getOwner(world, chunkX + xDelta, chunkY + yDelta);
-                    if (leader == null) {
-                        ln.append(ChatColor.GRAY + " +");
-                    } else if (leader.getKey().equals(plyr)) {
-                        ln.append(ChatColor.DARK_GREEN + " +");
-                    } else if (data.isTrusted(leader.getKey(), plyr)) {
-                        ln.append(ChatColor.DARK_BLUE + " +");
+
+                    TextComponent.Builder chunk = Component.text();
+                    chunk.content(" +");
+
+                    String location = "Chunk " + (chunkX + xDelta) + "/" + (chunkY + yDelta);
+                    String ownerName;
+                    String type;
+                    TextColor colorCoding;
+
+                    UUID owner = leader == null ? null : leader.getKey();
+                    if (owner == null) {
+                        type = "Unclaimed";
+                        ownerName = "None";
+                        colorCoding = NamedTextColor.GRAY;
+                        chunk.color(NamedTextColor.GRAY);
                     } else {
-                        ln.append(ChatColor.RED + " +");
+                        ownerName = getPlayerName(owner);
+
+                        if (owner.equals(plyr)) {
+                            type = "Owned";
+                            colorCoding = NamedTextColor.DARK_GREEN;
+                        } else if (data.isTrusted(owner, plyr)) {
+                            colorCoding = NamedTextColor.DARK_BLUE;
+                            type = "Trusted";
+                        } else {
+                            colorCoding = NamedTextColor.RED;
+                            type = "Other";
+                        }
                     }
+
+                    if (xDelta == 0 && yDelta == 0) {
+                        colorCoding = NamedTextColor.GOLD;
+                        type = "This chunk";
+                    }
+
+                    chunk.color(colorCoding);
+                    chunk.hoverEvent(HoverEvent.showText(Component.text(location, NamedTextColor.YELLOW, TextDecoration.BOLD)
+                            .append(Component.newline()).append(Component.text("Owner: " + ownerName, colorCoding))
+                            .append(Component.newline()).append(Component.text(type, colorCoding))));
+
+                    comp = comp.append(chunk);
                 }
-                String line = ln.toString();
-                if (line == null) {
-                    throw new IllegalStateException();
-                }
-                sender.sendMessage(line);
+                sender.sendMessage(comp);
             }
         }
     }
