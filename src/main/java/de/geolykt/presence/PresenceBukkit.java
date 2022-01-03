@@ -47,15 +47,15 @@ public class PresenceBukkit extends JavaPlugin {
 
     // TODO dynmap integration
 
-    private static final HashMap<UUID, UUID> PLAYER_LOCATIONS = new HashMap<>(); // For intelligent claim passing
-    private static final HashMap<UUID, Score> SCOREBOARD_CLAIM_OWNER = new HashMap<>(); // For intelligent caching
-    private static final HashMap<UUID, Score> SCOREBOARD_CLAIM_SELF = new HashMap<>();
-    private static final HashMap<UUID, Score> SCOREBOARD_CLAIM_SUCCESSOR = new HashMap<>();
-    private static final HashMap<UUID, Scoreboard> SCOREBOARD_SUBSCRIBERS = new HashMap<>();
+    private static final Map<UUID, UUID> PLAYER_LOCATIONS = new HashMap<>(); // For intelligent claim passing
+    private static final Map<UUID, Score> SCOREBOARD_CLAIM_OWNER = new HashMap<>(); // For intelligent caching
+    private static final Map<UUID, Score> SCOREBOARD_CLAIM_SELF = new HashMap<>();
+    private static final Map<UUID, Score> SCOREBOARD_CLAIM_SUCCESSOR = new HashMap<>();
+    private static final Map<UUID, Scoreboard> SCOREBOARD_SUBSCRIBERS = new HashMap<>();
 
     private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>();
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
-    private static final HashMap<UUID, Long> GRACEFUL_LAND = new HashMap<>();
+    private static final Map<UUID, Long> GRACEFUL_LAND = new HashMap<>();
 
     private boolean successfullLoad = false;
 
@@ -294,6 +294,8 @@ public class PresenceBukkit extends JavaPlugin {
 
         // Register tasks
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            // perhaps we can do this async, but given the relative speed of this operation, this is not
+            // really required
             PresenceData data = DataSource.getData();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (player == null) {
@@ -353,12 +355,7 @@ public class PresenceBukkit extends JavaPlugin {
                 Location loc = p.getLocation();
                 int chunkX = loc.getBlockX() >> 4;
                 int chunkY = loc.getBlockZ() >> 4;
-                World bukkitWorld = loc.getWorld();
-                if (bukkitWorld == null) {
-                    getLogger().warning("Presence Seizure.");
-                    return;
-                }
-                UUID world = bukkitWorld.getUID();
+                UUID world = p.getWorld().getUID();
                 UUID oldClaim = PLAYER_LOCATIONS.get(p.getUniqueId());
                 Map.Entry<UUID, Integer> newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
@@ -438,6 +435,8 @@ public class PresenceBukkit extends JavaPlugin {
     }
 
     private void printMap(CommandSender sender) {
+        // TODO do this with adventure,
+        // maybe allow seeing the user via the hover event (this would be a bit stupid though, or no)?
         if (sender instanceof Player) {
             Location loc = ((Player) sender).getLocation();
             int chunkX = loc.getBlockX() >> 4;

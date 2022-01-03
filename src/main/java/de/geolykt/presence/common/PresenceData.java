@@ -10,10 +10,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.zip.Adler32;
@@ -39,16 +40,16 @@ public class PresenceData {
      * The higher the value, the higher the granularity
      */
     private final int bucketSize;
-    // Do not forget to synchronise what needs to be synchronised!
-    private final HashMap<DataEntry, Integer> counts = new HashMap<>();
 
-    private final HashMap<WorldPosition, Map.Entry<UUID, Integer>> leaders = new HashMap<>();
+    private final Map<DataEntry, Integer> counts = new ConcurrentHashMap<>();
+
+    private final Map<WorldPosition, Map.Entry<UUID, Integer>> leaders = new ConcurrentHashMap<>();
 
     private final double recursiveTick;
 
-    private final HashMap<WorldPosition, Map.Entry<UUID, Integer>> successors = new HashMap<>();
+    private final Map<WorldPosition, Map.Entry<UUID, Integer>> successors = new ConcurrentHashMap<>();
 
-    private final HashSet<TrustEntry> trusts = new HashSet<>();
+    private final Set<TrustEntry> trusts = new HashSet<>();
 
     public PresenceData(int claimSize, double tickNearbyChance) {
         bucketSize = claimSize;
@@ -90,9 +91,7 @@ public class PresenceData {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        synchronized(counts) {
-            return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
-        }
+        return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
     }
 
     public Map.Entry<UUID, Integer> getSuccessor(UUID world, int x, int y) {
@@ -317,17 +316,15 @@ public class PresenceData {
 
     protected void saveStateToStream(OutputStream out) throws IOException {
         DataOutputStream dataOut = new DataOutputStream(out);
-        synchronized (counts) {
-            for (Map.Entry<DataEntry, Integer> entry : counts.entrySet()) {
-                dataOut.write(1);
-                dataOut.writeInt(entry.getValue().intValue());
-                DataEntry de = entry.getKey();
-                dataOut.writeLong(de.worldPos.world().getMostSignificantBits());
-                dataOut.writeLong(de.worldPos.world().getLeastSignificantBits());
-                dataOut.writeLong(de.id.getMostSignificantBits());
-                dataOut.writeLong(de.id.getLeastSignificantBits());
-                dataOut.writeLong(de.worldPos.chunkPos());
-            }
+        for (Map.Entry<DataEntry, Integer> entry : counts.entrySet()) {
+            dataOut.write(1);
+            dataOut.writeInt(entry.getValue().intValue());
+            DataEntry de = entry.getKey();
+            dataOut.writeLong(de.worldPos.world().getMostSignificantBits());
+            dataOut.writeLong(de.worldPos.world().getLeastSignificantBits());
+            dataOut.writeLong(de.id.getMostSignificantBits());
+            dataOut.writeLong(de.id.getLeastSignificantBits());
+            dataOut.writeLong(de.worldPos.chunkPos());
         }
     }
 
@@ -397,9 +394,7 @@ public class PresenceData {
             }
         }
         // update counts
-        synchronized (counts) { // This needs to be synchronised as we are saving this list asynchronously.
-            counts.put(entry, amount);
-        }
+        counts.put(entry, amount);
     }
 
     static class DataEntry {
