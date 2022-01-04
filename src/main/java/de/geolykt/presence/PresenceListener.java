@@ -3,6 +3,7 @@ package de.geolykt.presence;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -68,6 +69,11 @@ public class PresenceListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityHurt(EntityDamageByEntityEvent e) {
+
+        if (e.getEntity() instanceof Monster mob && mob.getCustomName() == null) {
+            return; // Hostile mobs can be attacked no matter what provided they do not have a nametag
+        }
+
         Entity damager = e.getDamager();
         if (damager instanceof Projectile) {
             ProjectileSource src = ((Projectile) damager).getShooter();
@@ -76,7 +82,7 @@ public class PresenceListener implements Listener {
             } else {
                 return;
             }
-        // TODO wolves and ocelots could also attack the entity, but how do we get their owner?
+            // TODO wolves and ocelots could also attack the entity, but how do we get their owner?
         } else if (!(damager instanceof Player)){
             return;
         }
