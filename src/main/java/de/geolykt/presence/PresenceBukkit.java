@@ -147,9 +147,8 @@ public class PresenceBukkit extends JavaPlugin {
                     sender.sendMessage(Component.text("You have to specify the target player!", NamedTextColor.RED));
                     return true;
                 }
-                @SuppressWarnings("deprecation")
-                OfflinePlayer player = Bukkit.getOfflinePlayer(args[1]);
-                if (!player.hasPlayedBefore()) {
+                OfflinePlayer player = Bukkit.getOfflinePlayerIfCached(args[1]);
+                if (player == null || (!player.hasPlayedBefore() && !player.isOnline())) {
                     sender.sendMessage(Component.text("The selected player did not play on this server (yet)!", NamedTextColor.RED));
                     return true;
                 }
@@ -167,7 +166,7 @@ public class PresenceBukkit extends JavaPlugin {
                     return true;
                 }
                 OfflinePlayer player = Bukkit.getOfflinePlayerIfCached(args[1]);
-                if (player == null || !player.hasPlayedBefore()) {
+                if (player == null || !player.hasPlayedBefore() && !player.isOnline()) {
                     sender.sendMessage(Component.text("The selected player did not play on this server (or does not exist)!", NamedTextColor.RED));
                     return true;
                 }
@@ -211,7 +210,7 @@ public class PresenceBukkit extends JavaPlugin {
                 sender.sendMessage(Component.text("You are no longer flying!", NamedTextColor.GREEN));
                 return true;
             }
-            Component flyingConfirm = Component.text("You are not able to fly in your claim!", NamedTextColor.GREEN);
+            Component flyingConfirm = Component.text("You are now able to fly in your claim!", NamedTextColor.GREEN);
             if (args.length == 2 && args[1].equalsIgnoreCase("temporary")) {
                 SESSION_FLIGHT.remove(player.getUniqueId());
                 TEMPORARY_FLIGHT.add(player.getUniqueId());
