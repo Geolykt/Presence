@@ -304,7 +304,7 @@ public class PresenceBukkit extends JavaPlugin {
             // really required
             PresenceData data = DataSource.getData();
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (player == null) {
+                if (player == null || player.getGameMode() == GameMode.SPECTATOR) {
                     continue;
                 }
                 Location position = player.getLocation();
