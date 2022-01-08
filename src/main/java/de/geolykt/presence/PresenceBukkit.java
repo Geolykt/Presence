@@ -304,7 +304,7 @@ public class PresenceBukkit extends JavaPlugin {
             // really required
             PresenceData data = DataSource.getData();
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (player == null || player.getGameMode() == GameMode.SPECTATOR) {
+                if (player == null || player.getGameMode() == GameMode.SPECTATOR || player.getGameMode() == GameMode.CREATIVE) {
                     continue;
                 }
                 Location position = player.getLocation();
@@ -368,7 +368,7 @@ public class PresenceBukkit extends JavaPlugin {
                     // now in the wild
                     if (oldClaim != null) {
                         // ... but was not in the wild before!
-                        if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
+                        if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.contains(p.getUniqueId())) {
                             removeFlight(p);
                         }
                         sendActionbarMessage(p, "You are now in the wild.", NamedTextColor.GREEN);
@@ -402,14 +402,15 @@ public class PresenceBukkit extends JavaPlugin {
                     PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimId);
                     if (newClaimId.equals(p.getUniqueId())) {
                         // Entered the own claim
+                        if (SESSION_FLIGHT.contains(p.getUniqueId())) {
+                            // Regain flying powers
+                            p.setAllowFlight(true);
+                        }
                         sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
                         if (!data.isTrusted(newClaimId, p.getUniqueId())) {
-                            if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
-                                removeFlight(p);
-                            }
                             sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
                         } else {
                             sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
