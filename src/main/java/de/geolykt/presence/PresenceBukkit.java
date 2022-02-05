@@ -156,7 +156,7 @@ public class PresenceBukkit extends JavaPlugin {
                     sender.sendMessage(Component.text("You need to be a player for that!", NamedTextColor.RED));
                     return true;
                 }
-                DataSource.getData().addTrust(((Player)sender).getUniqueId(), player.getUniqueId());
+                DataSource.getData().getChunkGroupManager().addTrustedPlayer(((Player)sender).getUniqueId(), player.getUniqueId());
                 sender.sendMessage(Component.text("You are now trusting " + player.getName() + ".", NamedTextColor.GREEN));
                 return true;
             }
@@ -174,12 +174,13 @@ public class PresenceBukkit extends JavaPlugin {
                     sender.sendMessage(Component.text("You need to be a player to be able to do that!", NamedTextColor.RED));
                     return true;
                 }
-                if (!DataSource.getData().isTrusted(((Player)sender).getUniqueId(), player.getUniqueId())) {
+                UUID truster = ((Player)sender).getUniqueId();
+                boolean changed = DataSource.getData().getChunkGroupManager().removeTrustedPlayer(truster, player.getUniqueId());
+                if (changed) {
+                    sender.sendMessage(Component.text("You are no longer trusting " + player.getName() + ".", NamedTextColor.GREEN));
+                } else {
                     sender.sendMessage(Component.text("You are not yet trusting that player!", NamedTextColor.RED));
-                    return true;
                 }
-                DataSource.getData().removeTrust(((Player)sender).getUniqueId(), player.getUniqueId());
-                sender.sendMessage(Component.text("You are no longer trusting " + player.getName() + ".", NamedTextColor.GREEN));
                 return true;
             }
             default:
@@ -201,7 +202,7 @@ public class PresenceBukkit extends JavaPlugin {
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
             UUID world = player.getWorld().getUID();
-            if (!DataSource.getData().isOwnerOrTrusted(player.getUniqueId(), world, chunkX, chunkY)) {
+            if (!DataSource.getData().canInteract(player.getUniqueId(), world, chunkX, chunkY)) { // FIXME formerly .isTrustedOrOwned
                 sender.sendMessage(Component.text("You are not in your claim!", NamedTextColor.RED));
                 return true;
             }
@@ -377,17 +378,17 @@ public class PresenceBukkit extends JavaPlugin {
                         // Same state -> do nothing
                     }
                 } else if (oldClaim != null) {
-                    UUID newClaimId = newClaim.getKey();
-                    PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimId);
-                    if (newClaimId.equals(oldClaim)) {
+                    UUID newClaimOwner = newClaim.getKey();
+                    PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimOwner);
+                    if (newClaimOwner.equals(oldClaim)) {
                         // Same state -> do nothing
-                    } else if (newClaimId.equals(p.getUniqueId())) {
+                    } else if (newClaimOwner.equals(p.getUniqueId())) {
                         // Entered the own claim
                         sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
-                        OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
-                        if (!data.isTrusted(newClaimId, p.getUniqueId())) {
+                        OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimOwner);
+                        if (!data.getChunkGroupManager().isTrusted(newClaimOwner, p.getUniqueId())) {
                             if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
                                 removeFlight(p);
                             }
@@ -410,7 +411,7 @@ public class PresenceBukkit extends JavaPlugin {
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
-                        if (!data.isTrusted(newClaimId, p.getUniqueId())) {
+                        if (!data.getChunkGroupManager().isTrusted(newClaimId, p.getUniqueId())) {
                             sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
                         } else {
                             sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
@@ -492,7 +493,7 @@ public class PresenceBukkit extends JavaPlugin {
                         if (owner.equals(plyr)) {
                             type = "Owned";
                             colorCoding = NamedTextColor.DARK_GREEN;
-                        } else if (data.isTrusted(owner, plyr)) {
+                        } else if (data.getChunkGroupManager().isTrusted(owner, plyr)) {
                             colorCoding = NamedTextColor.DARK_BLUE;
                             type = "Trusted";
                         } else {

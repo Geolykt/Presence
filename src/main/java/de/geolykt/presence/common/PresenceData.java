@@ -9,10 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -21,6 +18,8 @@ import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
 import java.util.zip.Checksum;
+
+import org.jetbrains.annotations.NotNull;
 
 import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
 
@@ -49,33 +48,27 @@ public class PresenceData {
 
     private final Map<WorldPosition, Map.Entry<UUID, Integer>> successors = new ConcurrentHashMap<>();
 
-    private final Set<TrustEntry> trusts = new HashSet<>();
+    @NotNull
+    private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
 
     public PresenceData(int claimSize, double tickNearbyChance) {
         bucketSize = claimSize;
         recursiveTick = tickNearbyChance;
     }
 
-    public void addTrust(UUID truster, UUID trusted) {
-        trusts.add(new TrustEntry(truster, trusted));
-    }
-
-    public boolean canUse(UUID player, UUID world, int x, int y) {
+    @Deprecated // Intermediary solution. I will use the chunkGroups class directly soon.
+    // However we need to get rid of the bucket sizes first, which I want to remove in a seperate commit
+    public boolean canInteract(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         if (bucketSize > 1) {
             x = Math.floorDiv(x, bucketSize);
             y = Math.floorDiv(y, bucketSize);
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(new WorldPosition(world, hashPositions(x, y)));
-        return leader == null || leader.getKey().equals(player) || isTrusted(leader.getKey(), player);
-    }
-
-    public boolean isOwnerOrTrusted(UUID player, UUID world, int x, int y) {
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
         }
-        Map.Entry<UUID, Integer> leader = leaders.get(new WorldPosition(world, hashPositions(x, y)));
-        return leader != null && (leader.getKey().equals(player) || isTrusted(leader.getKey(), player));
+        return chunkGroups.canBreak(owner.getKey(), player, pos);
     }
 
     public Map.Entry<UUID, Integer> getOwner(UUID world, int x, int y) {
@@ -102,31 +95,11 @@ public class PresenceData {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
-    public boolean isTrusted(UUID truster, UUID trusted) {
-        return trusts.contains(new TrustEntry(truster, trusted));
-    }
-
     public synchronized void load(Consumer<String> loggy, File dataFolder) {
         if (dataFolder.isFile()) {
             throw new RuntimeException("Loading from folder attempts to load a file!");
         }
         dataFolder.mkdirs();
-        ArrayList<File> trustFiles = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            trustFiles.add(new File(dataFolder, "trust_" + i + ".dat"));
-        }
-
-        ArrayList<Object> trustStreams = new ArrayList<>();
-        for (File f : trustFiles) {
-            if (f.exists()) {
-                try (FileInputStream fis = new FileInputStream(f)) {
-                    trustStreams.add(fis.readAllBytes());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        loadTrust(loggy, trustStreams.toArray(new byte[0][0]));
 
         loadStates: {
             File stateFile = new File(dataFolder, "statedb.dat");
@@ -181,79 +154,6 @@ public class PresenceData {
         }
     }
 
-    /**
-     * Loads the data of several streams.
-     * The implementation can make use of multiple algorithms to verify the integrity of the streams
-     * and use the stream with the best integrity.
-     * The default implementation however just uses a crude checksum and length verification by looking
-     * at the most common length of the streams.
-     *
-     * @param warnLogger Our crude replacement to be logger independent. All warnings will call this consumer.
-     * @param streams The input data arrays
-     */
-    protected void loadTrust(Consumer<String> warnLogger, byte[]... streams) {
-        if (streams.length == 0) {
-            if (warnLogger != null) {
-                warnLogger.accept("No input data to load!");
-            }
-            return;
-        }
-        ArrayList<Integer> useableStreams = new ArrayList<>();
-        int commonLength = getCommonArrayLength(streams);
-        if (commonLength < 9) {
-            return;
-        }
-        for (int i = 0; i < streams.length; i++) {
-            if (streams[i].length == commonLength) {
-                useableStreams.add(i);
-            } else {
-                if (warnLogger != null) {
-                    warnLogger.accept("Data array at index " + i + " does not match the common length (possible corruption)!");
-                }
-            }
-        }
-        ByteBuffer[] readers = new ByteBuffer[streams.length];
-        ArrayList<Integer> toRemove = new ArrayList<>();
-        for (Integer i : useableStreams) {
-            ByteBuffer buffer = ByteBuffer.wrap(streams[i]);
-            long definedChecksum = buffer.getLong();
-            long calculatedChecksum = 0;
-            while (buffer.hasRemaining()) {
-                calculatedChecksum += buffer.get();
-            }
-            if (definedChecksum != calculatedChecksum) {
-                toRemove.add(i);
-                if (warnLogger != null) {
-                    warnLogger.accept("Data array at index " + i + " does not match the expected checksum (data corrupted)!");
-                }
-            } else {
-                readers[i] = ByteBuffer.wrap(streams[i], 8, commonLength - 8);
-            }
-        }
-        toRemove.forEach(useableStreams::remove);
-        toRemove = null; // To prevent accidental reuse
-        if (useableStreams.size() == 0) {
-            throw new IllegalStateException("All input streams were invalidated due to common length checks and the data checksum."
-                    + "Corruption of the data streams is likely.");
-        }
-        // Technically we could use the other streams to prevent other issues with the 
-        ByteBuffer buffer = readers[useableStreams.get(0)];
-        if ((buffer.remaining() % 32) != 0) {
-            throw new IllegalStateException("The selected input stream has an invalid length.");
-        }
-        while (buffer.hasRemaining()) {
-            // The actual deserialisation magic happens here
-            long trusterMostSigBits = buffer.getLong();
-            long trusterLeastSigBits = buffer.getLong();
-            long trustedMostSigBits = buffer.getLong();
-            long trustedLeastSigBits = buffer.getLong();
-            TrustEntry entry = new TrustEntry(new UUID(trusterMostSigBits, trusterLeastSigBits), new UUID(trustedMostSigBits, trustedLeastSigBits));
-            if (!trusts.add(entry) && warnLogger != null) {
-                warnLogger.accept("Tried to trust the same pair twice. Data corruption likely.");
-            }
-        }
-    }
-
     protected static int getCommonArrayLength(byte[][] arrays) {
         int commonLen = 0;
         int commonAmt = 0;
@@ -272,20 +172,12 @@ public class PresenceData {
         return commonLen;
     }
 
-    public void removeTrust(UUID truster, UUID trusted) {
-        trusts.remove(new TrustEntry(truster, trusted));
-    }
-
     public synchronized void save(File dataFolder) {
         // BEWARE: This method is called async, thread safety should be done carefully!
         if (dataFolder.isFile()) {
             throw new RuntimeException("Saving to folder attempts to save in file!");
         }
         dataFolder.mkdirs();
-        ArrayList<File> trustFiles = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            trustFiles.add(new File(dataFolder, "trust_" + i + ".dat"));
-        }
 
         FastByteArrayOutputStream byteOut = new FastByteArrayOutputStream(counts.size() * 50);
         Checksum checksum = new Adler32();
@@ -303,15 +195,6 @@ public class PresenceData {
         } catch (IOException e) {
             throw new IllegalStateException("Fatal exception while saving state.");
         }
-
-        byte[] trust = saveTrustToArray();
-        for (File file : trustFiles) {
-            try (FileOutputStream fos = new FileOutputStream(file)) {
-                fos.write(trust);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     protected void saveStateToStream(OutputStream out) throws IOException {
@@ -326,32 +209,6 @@ public class PresenceData {
             dataOut.writeLong(de.id.getLeastSignificantBits());
             dataOut.writeLong(de.worldPos.chunkPos());
         }
-    }
-
-    protected byte[] saveTrustToArray() {
-        int len;
-        ByteBuffer buffer;
-        synchronized (leaders) {
-            len = 32 * trusts.size();
-            buffer = ByteBuffer.allocate(len);
-            for (TrustEntry entry : trusts) {
-                long trusterMostSigBits = entry.getKey().getMostSignificantBits();
-                long trusterLeastSigBits = entry.getKey().getLeastSignificantBits();
-                long trustedMostSigBits = entry.getValue().getMostSignificantBits();
-                long trustedLeastSigBits = entry.getValue().getLeastSignificantBits();
-                buffer.putLong(trusterMostSigBits).putLong(trusterLeastSigBits).putLong(trustedMostSigBits).putLong(trustedLeastSigBits);
-            }
-        }
-        byte[] out = new byte[len + 8];
-        byte[] raw = buffer.array();
-        System.arraycopy(raw, 0, out, 8, len);
-        long checksumValue = 0;
-        for (int i = 0; i < raw.length; i++) {
-            checksumValue += raw[i];
-        }
-        byte[] checksum = ByteBuffer.allocate(8).putLong(checksumValue).array();
-        System.arraycopy(checksum, 0, out, 0, 8);
-        return out;
     }
 
     /**
@@ -397,6 +254,11 @@ public class PresenceData {
         counts.put(entry, amount);
     }
 
+    @NotNull
+    public ChunkGroupManager getChunkGroupManager() {
+        return chunkGroups;
+    }
+
     static class DataEntry {
         private final UUID id;
         private final WorldPosition worldPos;
@@ -418,47 +280,6 @@ public class PresenceData {
         @Override
         public int hashCode() {
             return id.hashCode() ^ worldPos.hashCode();
-        }
-    }
-
-    static class TrustEntry implements Map.Entry<UUID, UUID> {
-        private final UUID trusted;
-        private final UUID truster;
-
-        public TrustEntry(UUID truster, UUID trusted) {
-            this.trusted = trusted;
-            this.truster = truster;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            }
-            if (obj instanceof TrustEntry) {
-                return ((TrustEntry) obj).trusted.equals(trusted) && ((TrustEntry) obj).truster.equals(truster);
-            }
-            return false;
-        }
-
-        @Override
-        public UUID getKey() {
-            return truster;
-        }
-
-        @Override
-        public UUID getValue() {
-            return trusted;
-        }
-
-        @Override
-        public int hashCode() {
-            return (truster.hashCode() << 16) ^ (trusted.hashCode() >>> 16);
-        }
-
-        @Override
-        public UUID setValue(UUID value) {
-            throw new UnsupportedOperationException("The implementation does not allow to change the trusted person.");
         }
     }
 }
