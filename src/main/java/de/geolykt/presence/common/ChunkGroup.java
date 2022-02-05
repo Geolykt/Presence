@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 public record ChunkGroup(@NotNull String name, @NotNull UUID owner, @NotNull AtomicReference<PermissionMatrix> permissionRef,
         @NotNull Iterable<WorldPosition> claimedChunks) {
 
-    @SuppressWarnings("null") // The reference should ideally not store 
+    @SuppressWarnings("null") // The reference should ideally not store null values
     @NotNull
     public PermissionMatrix permissions() {
         return permissionRef.get();

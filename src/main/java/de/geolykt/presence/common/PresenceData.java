@@ -34,12 +34,6 @@ public class PresenceData {
         return (((long) x) << 32) | (y & 0xFFFFFFFFL);
     }
 
-    /**
-     * Size of the buckets in chunks.
-     * The higher the value, the higher the granularity
-     */
-    private final int bucketSize;
-
     private final Map<DataEntry, Integer> counts = new ConcurrentHashMap<>();
 
     private final Map<WorldPosition, Map.Entry<UUID, Integer>> leaders = new ConcurrentHashMap<>();
@@ -51,18 +45,13 @@ public class PresenceData {
     @NotNull
     private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
 
-    public PresenceData(int claimSize, double tickNearbyChance) {
-        bucketSize = claimSize;
+    public PresenceData(double tickNearbyChance) {
         recursiveTick = tickNearbyChance;
     }
 
     @Deprecated // Intermediary solution. I will use the chunkGroups class directly soon.
     // However we need to get rid of the bucket sizes first, which I want to remove in a seperate commit
     public boolean canInteract(@NotNull UUID player, @NotNull UUID world, int x, int y) {
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
-        }
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
         Map.Entry<UUID, Integer> owner = leaders.get(pos);
         if (owner == null) {
@@ -72,26 +61,14 @@ public class PresenceData {
     }
 
     public Map.Entry<UUID, Integer> getOwner(UUID world, int x, int y) {
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
-        }
         return leaders.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
     public int getPresence(UUID player, UUID world, int x, int y) {
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
-        }
         return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
     }
 
     public Map.Entry<UUID, Integer> getSuccessor(UUID world, int x, int y) {
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
-        }
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
@@ -224,10 +201,6 @@ public class PresenceData {
             int dx = ThreadLocalRandom.current().nextInt(-3, 4);
             int dy = ThreadLocalRandom.current().nextInt(-3, 4);
             tick(id, world, dx + x, dy + y);
-        }
-        if (bucketSize > 1) {
-            x = Math.floorDiv(x, bucketSize);
-            y = Math.floorDiv(y, bucketSize);
         }
         long hashedPosition = hashPositions(x, y);
         WorldPosition worldPos = new WorldPosition(world, hashedPosition);

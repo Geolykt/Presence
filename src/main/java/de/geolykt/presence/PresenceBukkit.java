@@ -278,7 +278,7 @@ public class PresenceBukkit extends JavaPlugin {
                 bukkitCfg.getDouble("tick-nearby-chance"),
                 bukkitCfg.getBoolean("enable-claim-fly"));
         DataSource.setConfiguration(config);
-        DataSource.setData(new PresenceData(config.getClaimSize(), config.getTickNearbyChunksChance()));
+        DataSource.setData(new PresenceData(config.getTickNearbyChunksChance()));
 
         try {
             DataSource.getData().load(getLogger()::warning, getDataFolder());

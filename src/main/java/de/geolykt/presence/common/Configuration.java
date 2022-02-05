@@ -3,7 +3,6 @@ package de.geolykt.presence.common;
 public class Configuration {
 
     private final int autosaveInterval;
-    private final int claimSize;
     private final int claimTickInterval;
     private final int claimTravelInterval;
     private final int scoreboardRefreshInterval;
@@ -17,7 +16,6 @@ public class Configuration {
         claimTickInterval = tickInterval;
         claimTravelInterval = travelInterval;
         autosaveInterval = autosave;
-        claimSize = claimSizeInChunks;
         tickNearbyChunksChance = recursiveTickChance;
         allowFlight = flightInClaims;
     }
@@ -29,15 +27,6 @@ public class Configuration {
      */
     public int getAutosaveInterval() {
         return autosaveInterval;
-    }
-
-    /**
-     * The size of a claim in chunks.
-     *
-     * @return The size of claims.
-     */
-    public int getClaimSize() {
-        return claimSize;
     }
 
     public int getClaimTickInterval() {
