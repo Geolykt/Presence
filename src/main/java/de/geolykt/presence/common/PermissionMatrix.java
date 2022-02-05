@@ -15,31 +15,47 @@ public final class PermissionMatrix {
     public static final byte PERSON_STRANGER = 0b00_00_00_10;
     public static final byte PERSON_TRUSTED  = 0b00_00_01_00;
 
+    @NotNull
+    public static final PermissionMatrix DEFAULT = new PermissionMatrix(
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            PERSON_OWNER | PERSON_TRUSTED,
+            0);
+
+    @NotNull
+    public static final PermissionMatrix deserialize(@NotNull InputStream in) throws IOException {
+        return new PermissionMatrix(in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read());
+    }
+
     private final byte attack;
     private final byte attackNamed;
     private final byte build;
     private final byte destroy;
     private final byte harvestCrops;
+    private final byte interact;
+    private final byte interactEntity;
     private final byte trample;
 
-    @NotNull
-    public static final PermissionMatrix DEFAULT = new PermissionMatrix(PERSON_OWNER | PERSON_TRUSTED,
-            PERSON_OWNER | PERSON_TRUSTED,
-            PERSON_OWNER | PERSON_TRUSTED,
-            PERSON_OWNER | PERSON_TRUSTED,
-            PERSON_OWNER | PERSON_TRUSTED, 0);
-
-    public PermissionMatrix(byte attack, byte attackNamed, byte build, byte destroy, byte harvestCrops, byte trample) {
+    public PermissionMatrix(byte attack, byte attackNamed, byte build, byte destroy, byte harvestCrops,
+            byte interact, byte interactEntity, byte trample) {
         this.attack = attack;
         this.attackNamed = attackNamed;
         this.build = build;
         this.destroy = destroy;
         this.harvestCrops = harvestCrops;
+        this.interact = interact;
+        this.interactEntity = interactEntity;
         this.trample = trample;
     }
 
-    public PermissionMatrix(int attack, int attackNamed, int build, int destroy, int harvestCrops, int trample) {
-        this((byte) attack, (byte) attackNamed, (byte) build, (byte) destroy, (byte) harvestCrops, (byte) trample);
+    public PermissionMatrix(int attack, int attackNamed, int build, int destroy, int harvestCrops,
+            int interact, int interactEntity, int trample) {
+        this((byte) attack, (byte) attackNamed, (byte) build, (byte) destroy, (byte) harvestCrops,
+                (byte) interact, (byte) interactEntity, (byte) trample);
     }
 
     public final boolean canAttack(final int person) {
@@ -62,37 +78,16 @@ public final class PermissionMatrix {
         return (this.harvestCrops & person) != 0;
     }
 
+    public final boolean canInteract(final int person) {
+        return (this.interact & person) != 0;
+    }
+
+    public final boolean canInteractWithEntity(final int person) {
+        return (this.interactEntity & person) != 0;
+    }
+
     public final boolean canTrampleCrops(final int person) {
         return (this.trample & person) != 0;
-    }
-
-    public final byte getAttackBitfield() {
-        return destroy;
-    }
-
-    public final byte getAttackNamedBitfield() {
-        return destroy;
-    }
-
-    public final byte getBuildBitfield() {
-        return build;
-    }
-
-    public final byte getDestroyBitfield() {
-        return destroy;
-    }
-
-    public final byte getHarvestCropsBitfield() {
-        return destroy;
-    }
-
-    public final byte getTrampleBitfield() {
-        return trample;
-    }
-
-    @NotNull
-    public static final PermissionMatrix deserialize(@NotNull InputStream in) throws IOException {
-        return new PermissionMatrix(in.read(), in.read(), in.read(), in.read(), in.read(), in.read());
     }
 
     public final void serialize(@NotNull OutputStream out) throws IOException {
@@ -101,6 +96,8 @@ public final class PermissionMatrix {
         out.write(this.build);
         out.write(this.destroy);
         out.write(this.harvestCrops);
+        out.write(this.interact);
+        out.write(this.interactEntity);
         out.write(this.trample);
     }
 }

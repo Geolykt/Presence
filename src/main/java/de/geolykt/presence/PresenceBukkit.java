@@ -202,7 +202,9 @@ public class PresenceBukkit extends JavaPlugin {
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
             UUID world = player.getWorld().getUID();
-            if (!DataSource.getData().canInteract(player.getUniqueId(), world, chunkX, chunkY)) { // FIXME formerly .isTrustedOrOwned
+            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            UUID ownerUID = owner == null ? null : owner.getKey();
+            if (ownerUID == null || !(ownerUID.equals(player.getUniqueId()) || DataSource.getData().getChunkGroupManager().isTrusted(ownerUID, player.getUniqueId()))) {
                 sender.sendMessage(Component.text("You are not in your claim!", NamedTextColor.RED));
                 return true;
             }

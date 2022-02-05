@@ -55,7 +55,7 @@ public class PresenceListener implements Listener {
         */
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canBreak(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -66,7 +66,7 @@ public class PresenceListener implements Listener {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canBreak(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -80,7 +80,7 @@ public class PresenceListener implements Listener {
         }
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canInteractWithBlock(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -91,7 +91,7 @@ public class PresenceListener implements Listener {
         Block placed = e.getBlockPlaced();
         int chunkX = placed.getX() >> 4;
         int chunkY = placed.getZ() >> 4; // This is something that I will get wrong one day
-        if (!data.canInteract(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canBuild(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -119,9 +119,17 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        if (!data.canInteract(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
-            e.setCancelled(true);
-            noteCancelled((Player) damager);
+
+        if (e.getEntity().getCustomName() == null) {
+            if (!data.canAttack(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+                e.setCancelled(true);
+                noteCancelled((Player) damager);
+            }
+        } else {
+            if (!data.canAttackNamed(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+                e.setCancelled(true);
+                noteCancelled((Player) damager);
+            }
         }
     }
 
@@ -130,7 +138,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getRightClicked().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canInteractWithEntities(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -141,7 +149,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canInteractWithEntities(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -152,7 +160,7 @@ public class PresenceListener implements Listener {
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canInteractWithEntities(e.getPlayer().getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
@@ -165,7 +173,7 @@ public class PresenceListener implements Listener {
             Block block = evt.getBlock();
             int chunkX = block.getX() >> 4;
             int chunkY = block.getZ() >> 4;
-            if (!data.canInteract(e.getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+            if (!data.canBuild(e.getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
                 evt.setCancelled(true);
                 noteCancelled((Player) e);
             }
@@ -177,7 +185,7 @@ public class PresenceListener implements Listener {
         Block block = e.getBlock();
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canInteract(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+        if (!data.canInteractWithBlock(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }

@@ -28,11 +28,56 @@ import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
  */
 public class PresenceData {
 
+    static class DataEntry {
+        private final UUID id;
+        private final WorldPosition worldPos;
+
+        public DataEntry(UUID player, WorldPosition worldPos) {
+            this.id = player;
+            this.worldPos = worldPos;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof DataEntry) {
+                DataEntry entry = (DataEntry) obj;
+                return id.equals(entry.id) && worldPos.equals(entry.worldPos);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return id.hashCode() ^ worldPos.hashCode();
+        }
+    }
+
+    protected static int getCommonArrayLength(byte[][] arrays) {
+        int commonLen = 0;
+        int commonAmt = 0;
+        for (int i = 0; i < arrays.length; i++) {
+            int amt = 0;
+            for (int j = 0; j < arrays.length; j++) {
+                if (arrays[j].length == arrays[i].length) {
+                    amt++;
+                }
+            }
+            if (amt > commonAmt) {
+                commonAmt = amt;
+                commonLen = arrays[i].length;
+            }
+        }
+        return commonLen;
+    }
+
     public static long hashPositions(int x, int y) {
         // We make use of (y & 0xFFFFFFFFL) as otherwise y values such as -1 would completely override the x value.
         // This is because `long | int` automatically casts the int to a long, where as the cast is by decimal value
         return (((long) x) << 32) | (y & 0xFFFFFFFFL);
     }
+
+    @NotNull
+    private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
 
     private final Map<DataEntry, Integer> counts = new ConcurrentHashMap<>();
 
@@ -42,22 +87,85 @@ public class PresenceData {
 
     private final Map<WorldPosition, Map.Entry<UUID, Integer>> successors = new ConcurrentHashMap<>();
 
-    @NotNull
-    private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
-
     public PresenceData(double tickNearbyChance) {
         recursiveTick = tickNearbyChance;
     }
 
-    @Deprecated // Intermediary solution. I will use the chunkGroups class directly soon.
-    // However we need to get rid of the bucket sizes first, which I want to remove in a seperate commit
-    public boolean canInteract(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+    public boolean canAttack(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canAttack(owner.getKey(), player, pos);
+    }
+
+    public boolean canAttackNamed(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canAttackNamedEntities(owner.getKey(), player, pos);
+    }
+
+    public boolean canBreak(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
         Map.Entry<UUID, Integer> owner = leaders.get(pos);
         if (owner == null) {
             return true;
         }
         return chunkGroups.canBreak(owner.getKey(), player, pos);
+    }
+
+    public boolean canBuild(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canBuild(owner.getKey(), player, pos);
+    }
+
+    public boolean canHarvest(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canHarvestCrops(owner.getKey(), player, pos);
+    }
+
+    public boolean canInteractWithBlock(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canInteract(owner.getKey(), player, pos);
+    }
+
+    public boolean canInteractWithEntities(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canInteractWithEntities(owner.getKey(), player, pos);
+    }
+
+    public boolean canTrample(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        Map.Entry<UUID, Integer> owner = leaders.get(pos);
+        if (owner == null) {
+            return true;
+        }
+        return chunkGroups.canTrampleCrops(owner.getKey(), player, pos);
+    }
+
+    @NotNull
+    public ChunkGroupManager getChunkGroupManager() {
+        return chunkGroups;
     }
 
     public Map.Entry<UUID, Integer> getOwner(UUID world, int x, int y) {
@@ -67,6 +175,7 @@ public class PresenceData {
     public int getPresence(UUID player, UUID world, int x, int y) {
         return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
     }
+
 
     public Map.Entry<UUID, Integer> getSuccessor(UUID world, int x, int y) {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
@@ -91,17 +200,6 @@ public class PresenceData {
             }
         }
     }
-
-    protected void loadStateChecked(InputStream in) throws IOException {
-        long checksum = ByteBuffer.wrap(in.readNBytes(8)).getLong();
-        Adler32 adler32Checksum = new Adler32();
-        CheckedInputStream checkedIn = new CheckedInputStream(in, adler32Checksum);
-        loadState(checkedIn);
-        if (adler32Checksum.getValue() != checksum) {
-            throw new IOException("State invalid as it breaks the checksum.");
-        }
-    }
-
 
     protected void loadState(InputStream in) throws IOException {
         DataInputStream dataIn = new DataInputStream(in);
@@ -131,22 +229,14 @@ public class PresenceData {
         }
     }
 
-    protected static int getCommonArrayLength(byte[][] arrays) {
-        int commonLen = 0;
-        int commonAmt = 0;
-        for (int i = 0; i < arrays.length; i++) {
-            int amt = 0;
-            for (int j = 0; j < arrays.length; j++) {
-                if (arrays[j].length == arrays[i].length) {
-                    amt++;
-                }
-            }
-            if (amt > commonAmt) {
-                commonAmt = amt;
-                commonLen = arrays[i].length;
-            }
+    protected void loadStateChecked(InputStream in) throws IOException {
+        long checksum = ByteBuffer.wrap(in.readNBytes(8)).getLong();
+        Adler32 adler32Checksum = new Adler32();
+        CheckedInputStream checkedIn = new CheckedInputStream(in, adler32Checksum);
+        loadState(checkedIn);
+        if (adler32Checksum.getValue() != checksum) {
+            throw new IOException("State invalid as it breaks the checksum.");
         }
-        return commonLen;
     }
 
     public synchronized void save(File dataFolder) {
@@ -225,34 +315,5 @@ public class PresenceData {
         }
         // update counts
         counts.put(entry, amount);
-    }
-
-    @NotNull
-    public ChunkGroupManager getChunkGroupManager() {
-        return chunkGroups;
-    }
-
-    static class DataEntry {
-        private final UUID id;
-        private final WorldPosition worldPos;
-
-        public DataEntry(UUID player, WorldPosition worldPos) {
-            this.id = player;
-            this.worldPos = worldPos;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof DataEntry) {
-                DataEntry entry = (DataEntry) obj;
-                return id.equals(entry.id) && worldPos.equals(entry.worldPos);
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return id.hashCode() ^ worldPos.hashCode();
-        }
     }
 }
