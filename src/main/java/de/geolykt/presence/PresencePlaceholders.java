@@ -1,7 +1,6 @@
 package de.geolykt.presence;
 
 import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -10,17 +9,16 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import de.geolykt.presence.common.DataSource;
+import de.geolykt.presence.common.PlayerRecord;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 public class PresencePlaceholders extends PlaceholderExpansion {
 
+    @NotNull
     private final PresenceBukkit plugin;
 
-    public PresencePlaceholders(PresenceBukkit pluginInstance) {
-        if (pluginInstance == null) {
-            throw new IllegalArgumentException("What's a null instance worth?");
-        }
+    public PresencePlaceholders(@NotNull PresenceBukkit pluginInstance) {
         plugin = pluginInstance;
     }
 
@@ -30,7 +28,8 @@ public class PresencePlaceholders extends PlaceholderExpansion {
     }
 
     @Override
-    public @NotNull String getAuthor() {
+    @NotNull
+    public String getAuthor() {
         return "Geolykt";
     }
 
@@ -55,40 +54,34 @@ public class PresencePlaceholders extends PlaceholderExpansion {
         UUID world = loc.getWorld().getUID();
         switch(value.toLowerCase(Locale.ROOT)) {
         case "claimowner": {
-            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            PlayerRecord owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "none";
             }
-            UUID ownerUUID = owner.getKey();
-            if (ownerUUID == null) {
-                throw new IllegalStateException();
-            }
+            UUID ownerUUID = owner.getPlayer();
             return Bukkit.getOfflinePlayer(ownerUUID).getName();
         }
         case "ownerpresence": {
-            Map.Entry<UUID, Integer> owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            PlayerRecord owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "0";
             }
-            return owner.getValue().toString();
+            return owner.score().toString();
         }
         case "claimsuccessor": {
-            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
+            PlayerRecord successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "none";
             }
-            UUID successorUUID = successor.getKey();
-            if (successorUUID == null) {
-                throw new IllegalStateException();
-            }
+            UUID successorUUID = successor.getPlayer();
             return Bukkit.getOfflinePlayer(successorUUID).getName();
         }
         case "successorpresence": {
-            Map.Entry<UUID, Integer> successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
+            PlayerRecord successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "0";
             }
-            return successor.getValue().toString();
+            return successor.score().toString();
         }
         case "playerpresence": {
             return Integer.toString(DataSource.getData().getPresence(player.getUniqueId(), world, chunkX, chunkY));

@@ -13,13 +13,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
 import java.util.zip.Checksum;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
 
@@ -27,48 +28,6 @@ import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
  * Base data holder.
  */
 public class PresenceData {
-
-    static class DataEntry {
-        private final UUID id;
-        private final WorldPosition worldPos;
-
-        public DataEntry(UUID player, WorldPosition worldPos) {
-            this.id = player;
-            this.worldPos = worldPos;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof DataEntry) {
-                DataEntry entry = (DataEntry) obj;
-                return id.equals(entry.id) && worldPos.equals(entry.worldPos);
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return id.hashCode() ^ worldPos.hashCode();
-        }
-    }
-
-    protected static int getCommonArrayLength(byte[][] arrays) {
-        int commonLen = 0;
-        int commonAmt = 0;
-        for (int i = 0; i < arrays.length; i++) {
-            int amt = 0;
-            for (int j = 0; j < arrays.length; j++) {
-                if (arrays[j].length == arrays[i].length) {
-                    amt++;
-                }
-            }
-            if (amt > commonAmt) {
-                commonAmt = amt;
-                commonLen = arrays[i].length;
-            }
-        }
-        return commonLen;
-    }
 
     public static long hashPositions(int x, int y) {
         // We make use of (y & 0xFFFFFFFFL) as otherwise y values such as -1 would completely override the x value.
@@ -79,13 +38,13 @@ public class PresenceData {
     @NotNull
     private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
 
-    private final Map<DataEntry, Integer> counts = new ConcurrentHashMap<>();
+    private final Map<PlayerPosition, PlayerRecord> counts = new ConcurrentHashMap<>();
 
-    private final Map<WorldPosition, Map.Entry<UUID, Integer>> leaders = new ConcurrentHashMap<>();
+    private final Map<WorldPosition, PlayerRecord> leaders = new ConcurrentHashMap<>();
 
     private final double recursiveTick;
 
-    private final Map<WorldPosition, Map.Entry<UUID, Integer>> successors = new ConcurrentHashMap<>();
+    private final Map<WorldPosition, PlayerRecord> successors = new ConcurrentHashMap<>();
 
     public PresenceData(double tickNearbyChance) {
         recursiveTick = tickNearbyChance;
@@ -93,74 +52,74 @@ public class PresenceData {
 
     public boolean canAttack(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canAttack(owner.getKey(), player, pos);
+        return chunkGroups.canAttack(record.getPlayer(), player, pos);
     }
 
     public boolean canAttackNamed(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canAttackNamedEntities(owner.getKey(), player, pos);
+        return chunkGroups.canAttackNamedEntities(record.getPlayer(), player, pos);
     }
 
     public boolean canBreak(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canBreak(owner.getKey(), player, pos);
+        return chunkGroups.canBreak(record.getPlayer(), player, pos);
     }
 
     public boolean canBuild(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canBuild(owner.getKey(), player, pos);
+        return chunkGroups.canBuild(record.getPlayer(), player, pos);
     }
 
     public boolean canHarvest(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canHarvestCrops(owner.getKey(), player, pos);
+        return chunkGroups.canHarvestCrops(record.getPlayer(), player, pos);
     }
 
     public boolean canInteractWithBlock(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canInteract(owner.getKey(), player, pos);
+        return chunkGroups.canInteract(record.getPlayer(), player, pos);
     }
 
     public boolean canInteractWithEntities(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canInteractWithEntities(owner.getKey(), player, pos);
+        return chunkGroups.canInteractWithEntities(record.getPlayer(), player, pos);
     }
 
     public boolean canTrample(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        Map.Entry<UUID, Integer> owner = leaders.get(pos);
-        if (owner == null) {
+        PlayerRecord record = leaders.get(pos);
+        if (record == null) {
             return true;
         }
-        return chunkGroups.canTrampleCrops(owner.getKey(), player, pos);
+        return chunkGroups.canTrampleCrops(record.getPlayer(), player, pos);
     }
 
     @NotNull
@@ -168,20 +127,26 @@ public class PresenceData {
         return chunkGroups;
     }
 
-    public Map.Entry<UUID, Integer> getOwner(UUID world, int x, int y) {
+    @Nullable
+    public PlayerRecord getOwner(@NotNull UUID world, int x, int y) {
         return leaders.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
-    public int getPresence(UUID player, UUID world, int x, int y) {
-        return counts.getOrDefault(new DataEntry(player, new WorldPosition(world, hashPositions(x, y))), 0);
+    public int getPresence(@NotNull UUID player, @NotNull UUID world, int x, int y) {
+        PlayerRecord record = counts.get(new PlayerPosition(player, new WorldPosition(world, hashPositions(x, y))));
+        if (record == null) {
+            return 0;
+        }
+        return record.score().get();
     }
 
 
-    public Map.Entry<UUID, Integer> getSuccessor(UUID world, int x, int y) {
+    @Nullable
+    public PlayerRecord getSuccessor(UUID world, int x, int y) {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
-    public synchronized void load(Consumer<String> loggy, File dataFolder) {
+    public synchronized void load(@NotNull File dataFolder) {
         if (dataFolder.isFile()) {
             throw new RuntimeException("Loading from folder attempts to load a file!");
         }
@@ -195,13 +160,24 @@ public class PresenceData {
             try (FileInputStream fis = new FileInputStream(stateFile)) {
                 loadStateChecked(fis);
             } catch (IOException e) {
-                e.printStackTrace();
                 throw new IllegalStateException("Unable to load state db.", e);
+            }
+        }
+
+        loadChunkGroups: {
+            File chunkGroupsFile = new File(dataFolder, "chunkgroups.dat");
+            if (!chunkGroupsFile.exists()) {
+                break loadChunkGroups;
+            }
+            try (FileInputStream fis = new FileInputStream(chunkGroupsFile)) {
+                chunkGroups.loadSafely(fis);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to load chunk groups.", e);
             }
         }
     }
 
-    protected void loadState(InputStream in) throws IOException {
+    protected void loadState(@NotNull InputStream in) throws IOException {
         DataInputStream dataIn = new DataInputStream(in);
 
         while (dataIn.read() > 0) {
@@ -211,19 +187,20 @@ public class PresenceData {
             long pos = dataIn.readLong();
 
             WorldPosition worldPos = new WorldPosition(world, pos);
-            DataEntry entry = new DataEntry(player, worldPos);
+            PlayerPosition entry  = new PlayerPosition(player, worldPos);
 
-            Map.Entry<UUID, Integer> leader = leaders.get(worldPos);
-            if (leader == null || leader.getValue() < value) {
-                leaders.put(worldPos, Map.entry(player, value)); // Set the leader
+            PlayerRecord oldLeader = leaders.get(worldPos);
+            PlayerRecord loadedPlayer = new PlayerRecord(player, new AtomicInteger(value));
+            if (oldLeader == null || oldLeader.score().get() < value) {
+                leaders.put(worldPos, loadedPlayer); // Set the leader to a more accurate value
             } else {
-                Map.Entry<UUID, Integer> successor = successors.get(worldPos);
-                if (successor == null || successor.getValue() < value) {
+                PlayerRecord successor = successors.get(worldPos);
+                if (successor == null || successor.score().get() < value) {
                     // Update successor
-                    successors.put(worldPos, Map.entry(player, value));
+                    successors.put(worldPos, loadedPlayer);
                 }
             }
-            if (counts.put(entry, value) != null) {
+            if (counts.putIfAbsent(entry, loadedPlayer) != null) {
                 throw new IllegalStateException("Input defined multiple entries for the same player and chunk (data curruption likely)");
             }
         }
@@ -253,40 +230,48 @@ public class PresenceData {
         try {
             saveStateToStream(checkedOut);
         } catch (IOException e1) {
-            throw new IllegalStateException("Fatal exception while serializing state.");
+            throw new IllegalStateException("Fatal exception while serializing state.", e1);
         }
 
         try (FileOutputStream fos = new FileOutputStream(new File(dataFolder, "statedb.dat"))) {
             fos.write(ByteBuffer.allocate(8).putLong(checksum.getValue()).array());
             fos.write(byteOut.array, 0, (int) byteOut.position());
         } catch (IOException e) {
-            throw new IllegalStateException("Fatal exception while saving state.");
+            throw new IllegalStateException("Fatal exception while saving state.", e);
+        }
+
+        try (FileOutputStream fos = new FileOutputStream(new File(dataFolder, "chunkgroups.dat"))) {
+            chunkGroups.saveSafely(fos);
+        } catch (IOException e) {
+            throw new IllegalStateException("Fatal exception while saving state.", e);
         }
     }
 
     protected void saveStateToStream(OutputStream out) throws IOException {
         DataOutputStream dataOut = new DataOutputStream(out);
-        for (Map.Entry<DataEntry, Integer> entry : counts.entrySet()) {
+        for (Map.Entry<PlayerPosition, PlayerRecord> entry : counts.entrySet()) {
             dataOut.write(1);
-            dataOut.writeInt(entry.getValue().intValue());
-            DataEntry de = entry.getKey();
-            dataOut.writeLong(de.worldPos.world().getMostSignificantBits());
-            dataOut.writeLong(de.worldPos.world().getLeastSignificantBits());
-            dataOut.writeLong(de.id.getMostSignificantBits());
-            dataOut.writeLong(de.id.getLeastSignificantBits());
-            dataOut.writeLong(de.worldPos.chunkPos());
+            dataOut.writeInt(entry.getValue().score().get());
+            PlayerPosition de = entry.getKey();
+            dataOut.writeLong(de.pos().world().getMostSignificantBits());
+            dataOut.writeLong(de.pos().world().getLeastSignificantBits());
+            dataOut.writeLong(de.player().getMostSignificantBits());
+            dataOut.writeLong(de.player().getLeastSignificantBits());
+            dataOut.writeLong(de.pos().chunkPos());
         }
     }
 
     /**
      * Increases the presence of a given player by one.
+     * This method can be called concurrently, however other methods in this class may have not been
+     * built for this.
      *
      * @param id A unique identifier that identifies a user.
      * @param world The UUID of the world of the chunk
      * @param x The X-Coordinate of the chunk (in chunks)
      * @param y The Y-Coordinate of the chunk (in chunks)
      */
-    public void tick(UUID id, UUID world, int x, int y) {
+    public void tick(@NotNull UUID id, @NotNull UUID world, int x, int y) {
         if (recursiveTick > 0.0 && recursiveTick > ThreadLocalRandom.current().nextDouble(1.0)) {
             int dx = ThreadLocalRandom.current().nextInt(-3, 4);
             int dy = ThreadLocalRandom.current().nextInt(-3, 4);
@@ -294,26 +279,42 @@ public class PresenceData {
         }
         long hashedPosition = hashPositions(x, y);
         WorldPosition worldPos = new WorldPosition(world, hashedPosition);
-        DataEntry entry = new DataEntry(id, worldPos);
-        int amount = counts.getOrDefault(entry, 0) + 1; // Prevent NPE by using getOrDefault
-
-        Map.Entry<UUID, Integer> leader = leaders.get(worldPos);
-        if (leader == null) { // This is a previously untouched claim, set the leader
-            leaders.put(worldPos, Map.entry(id, amount));
-        } else if (leader.getValue() < amount) {
-            if (leader.getKey().equals(id)) { // update current leader
-                leaders.put(worldPos, Map.entry(id, amount));
-            } else { // change leader and put the previous leader as the successor
-                successors.put(worldPos, leaders.put(worldPos, Map.entry(id, amount)));
-            }
-        } else {
-            Map.Entry<UUID, Integer> successor = successors.get(worldPos);
-            if (successor == null || successor.getValue() < amount) {
-                // Update successor
-                successors.put(worldPos, Map.entry(id, amount));
+        PlayerPosition entry = new PlayerPosition(id, worldPos);
+        PlayerRecord tickedRecord = counts.get(entry);
+        if (tickedRecord == null) {
+            tickedRecord = new PlayerRecord(world, new AtomicInteger(0));
+            PlayerRecord retain = counts.putIfAbsent(entry, tickedRecord);
+            if (retain != null) { // Race condition
+                tickedRecord = retain;
             }
         }
-        // update counts
-        counts.put(entry, amount);
+        tickedRecord.score().getAndIncrement();
+
+        do {
+            PlayerRecord oldLeader = leaders.get(worldPos);
+            if (oldLeader == null) { // This is a previously untouched claim, set the leader
+                oldLeader = leaders.putIfAbsent(worldPos, tickedRecord);
+            }
+
+            if (oldLeader != null && tickedRecord != oldLeader) {
+                if (oldLeader.score().get() < tickedRecord.score().get()) {
+                    if (!leaders.replace(worldPos, oldLeader, tickedRecord)) {
+                        continue; // The old value changed in the meantime: let's have another poke at it
+                    }
+                } else {
+                    do {
+                        PlayerRecord oldSuccessor = successors.get(worldPos);
+                        if (oldSuccessor == null) { // There is no successor, so we can easily change it now
+                            oldSuccessor = successors.putIfAbsent(worldPos, tickedRecord);
+                        }
+                        if (oldSuccessor != null && tickedRecord != oldSuccessor
+                                && oldSuccessor.score().get() < tickedRecord.score().get()
+                                && !successors.replace(worldPos, oldSuccessor, tickedRecord)) {
+                            continue; // The old value changed in the meantime: let's have another poke at it
+                        }
+                    } while(false);
+                }
+            }
+        } while(false); // While(true)'s alter ego
     }
 }
