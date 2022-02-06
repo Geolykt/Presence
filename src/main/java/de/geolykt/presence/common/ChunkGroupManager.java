@@ -364,7 +364,7 @@ public class ChunkGroupManager {
                 out.writeLong(pos.world().getMostSignificantBits());
                 out.writeLong(pos.world().getLeastSignificantBits());
                 out.writeLong(pos.chunkPos());
-            };
+            }
         }
     }
 

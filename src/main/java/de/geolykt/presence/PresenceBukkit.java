@@ -300,7 +300,7 @@ public class PresenceBukkit extends JavaPlugin {
         } catch (ClassNotFoundException ignore) {}
 
         // Register bukkit events
-        Bukkit.getPluginManager().registerEvents(new PresenceListener(), this);
+        Bukkit.getPluginManager().registerEvents(new PresenceListener(this), this);
 
         // Register tasks
         Bukkit.getScheduler().scheduleSyncRepeatingTask(this, () -> {

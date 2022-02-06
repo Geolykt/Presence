@@ -1,5 +1,7 @@
 package de.geolykt.presence.common;
 
+import org.jetbrains.annotations.NotNull;
+
 public class DataSource {
 
     private static PresenceData data;
@@ -13,11 +15,11 @@ public class DataSource {
         return cfg;
     }
 
-    public static void setData(PresenceData data) {
+    public static void setData(@NotNull PresenceData data) {
         DataSource.data = data;
     }
 
-    public static void setConfiguration(Configuration config) {
+    public static void setConfiguration(@NotNull Configuration config) {
         cfg = config;
     }
 }

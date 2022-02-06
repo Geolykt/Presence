@@ -1,11 +1,15 @@
 package de.geolykt.presence;
 
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
@@ -18,11 +22,14 @@ import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.block.SpongeAbsorbEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerUnleashEntityEvent;
+import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.metadata.MetadataValue;
 import org.bukkit.projectiles.ProjectileSource;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,9 +40,17 @@ import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PresenceData;
 
 public class PresenceListener implements Listener {
-
     private final PresenceData data = DataSource.getData();
-    private final Map<UUID, Long> lastComplainTime = new HashMap<>();
+
+    @NotNull
+    private final Map<UUID, Long> lastComplainTime = new ConcurrentHashMap<>();
+
+    @NotNull
+    private final PresenceBukkit pl;
+
+    public PresenceListener(@NotNull PresenceBukkit plugin) {
+        this.pl = plugin;
+    }
 
     private void noteCancelled(@NotNull Player player) {
         long time = System.currentTimeMillis();
@@ -58,6 +73,8 @@ public class PresenceListener implements Listener {
         if (!data.canBreak(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
+        } else {
+            block.removeMetadata("presence_spongeplacer", pl);
         }
     }
 
@@ -94,6 +111,8 @@ public class PresenceListener implements Listener {
         if (!data.canBuild(e.getPlayer().getUniqueId(), placed.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
+        } else if (placed.getType() == Material.SPONGE) {
+            placed.setMetadata("presence_spongeplacer", new FixedMetadataValue(pl, e.getPlayer().getUniqueId()));
         }
     }
 
@@ -112,7 +131,7 @@ public class PresenceListener implements Listener {
             } else {
                 return;
             }
-            // TODO wolves and ocelots could also attack the entity, but how do we get their owner?
+            // TODO wolves and cats could also attack the entity, but how do we get their owner?
         } else if (!(damager instanceof Player)){
             return;
         }
@@ -188,6 +207,28 @@ public class PresenceListener implements Listener {
         if (!data.canInteractWithBlock(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onSpongeAbsorb(SpongeAbsorbEvent evt) {
+        Block sponge = evt.getBlock();
+        List<MetadataValue> player = sponge.getMetadata("presence_spongeplacer");
+        if (player.isEmpty()) {
+            return;
+        }
+        UUID puid = (UUID) player.get(0).value();
+        if (puid == null) {
+            return;
+        }
+        Iterator<BlockState> iter = evt.getBlocks().iterator();
+        while (iter.hasNext()) {
+            BlockState block = iter.next();
+            int chunkX = block.getX() >> 4;
+            int chunkY = block.getZ() >> 4;
+            if (!data.canBreak(puid, block.getWorld().getUID(), chunkX, chunkY)) {
+                iter.remove();
+            }
         }
     }
 }
