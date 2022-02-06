@@ -9,7 +9,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import de.geolykt.presence.common.DataSource;
-import de.geolykt.presence.common.PlayerRecord;
+import de.geolykt.presence.common.util.PlayerAttachedScore;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
@@ -54,7 +54,7 @@ public class PresencePlaceholders extends PlaceholderExpansion {
         UUID world = loc.getWorld().getUID();
         switch(value.toLowerCase(Locale.ROOT)) {
         case "claimowner": {
-            PlayerRecord owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            PlayerAttachedScore owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "none";
             }
@@ -62,14 +62,14 @@ public class PresencePlaceholders extends PlaceholderExpansion {
             return Bukkit.getOfflinePlayer(ownerUUID).getName();
         }
         case "ownerpresence": {
-            PlayerRecord owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            PlayerAttachedScore owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             if (owner == null) {
                 return "0";
             }
             return owner.score().toString();
         }
         case "claimsuccessor": {
-            PlayerRecord successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
+            PlayerAttachedScore successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "none";
             }
@@ -77,7 +77,7 @@ public class PresencePlaceholders extends PlaceholderExpansion {
             return Bukkit.getOfflinePlayer(successorUUID).getName();
         }
         case "successorpresence": {
-            PlayerRecord successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
+            PlayerAttachedScore successor = DataSource.getData().getSuccessor(world, chunkX, chunkY);
             if (successor == null) {
                 return "0";
             }

@@ -50,11 +50,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
+import de.geolykt.presence.common.ChunkGroup;
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PermissionMatrix;
-import de.geolykt.presence.common.PlayerRecord;
 import de.geolykt.presence.common.PresenceData;
+import de.geolykt.presence.common.util.PlayerAttachedScore;
 
 public class PresenceBukkit extends JavaPlugin {
 
@@ -89,8 +90,8 @@ public class PresenceBukkit extends JavaPlugin {
         UUID world = player.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
         UUID playerUID = player.getUniqueId();
-        PlayerRecord leader = presenceData.getOwner(world, chunkX, chunkY);
-        PlayerRecord successor = presenceData.getSuccessor(world, chunkX, chunkY);
+        PlayerAttachedScore leader = presenceData.getOwner(world, chunkX, chunkY);
+        PlayerAttachedScore successor = presenceData.getSuccessor(world, chunkX, chunkY);
         Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", Component.text("Presence claims: ", NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.setRenderType(RenderType.INTEGER);
@@ -223,7 +224,7 @@ public class PresenceBukkit extends JavaPlugin {
             int chunkX = loc.getBlockX() >> 4;
             int chunkY = loc.getBlockZ() >> 4;
             UUID world = player.getWorld().getUID();
-            PlayerRecord owner = DataSource.getData().getOwner(world, chunkX, chunkY);
+            PlayerAttachedScore owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             UUID ownerUID = owner == null ? null : owner.getPlayer();
             if (ownerUID == null || !(ownerUID.equals(player.getUniqueId()) || DataSource.getData().getChunkGroupManager().isTrusted(ownerUID, player.getUniqueId()))) {
                 sender.sendMessage(Component.text("You are not in your claim!", NamedTextColor.RED));
@@ -544,7 +545,7 @@ public class PresenceBukkit extends JavaPlugin {
                 int chunkY = loc.getBlockZ() >> 4;
                 UUID world = p.getWorld().getUID();
                 UUID oldClaim = PLAYER_LOCATIONS.get(p.getUniqueId());
-                PlayerRecord newClaim = data.getOwner(world, chunkX, chunkY);
+                PlayerAttachedScore newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
                     // now in the wild
                     if (oldClaim != null) {
@@ -611,7 +612,27 @@ public class PresenceBukkit extends JavaPlugin {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("claims")) {
             if (args.length > 1) {
-                return null;
+                switch (args[0]) {
+                case "perm":
+                case "perms":
+                case "permission":
+                case "permissions":
+                    if (args.length == 2 && sender instanceof Player p) {
+                        List<String> s = new ArrayList<>();
+                        Set<ChunkGroup> groups = DataSource.getData().getChunkGroupManager().getOwnedGroups(p.getUniqueId());
+                        if (groups == null) {
+                            return s;
+                        }
+                        for (ChunkGroup group : groups) {
+                            if (group.name().startsWith(args[1])) {
+                                s.add(group.name());
+                            }
+                        }
+                        return s;
+                    }
+                default:
+                    return null;
+                }
             }
             List<String> sList = new ArrayList<>(Arrays.asList("togglesb", "help", "map", "trust", "untrust", "perm"));
             if (args.length == 1) {
@@ -651,7 +672,7 @@ public class PresenceBukkit extends JavaPlugin {
             for (int yDelta = -5; yDelta < 5; yDelta++) {
                 Component comp = Component.empty();
                 for (int xDelta = -14; xDelta < 14; xDelta++) {
-                    PlayerRecord leader = data.getOwner(world, chunkX + xDelta, chunkY + yDelta);
+                    PlayerAttachedScore leader = data.getOwner(world, chunkX + xDelta, chunkY + yDelta);
 
                     TextComponent.Builder chunk = Component.text();
                     chunk.content(" +");
@@ -706,7 +727,7 @@ public class PresenceBukkit extends JavaPlugin {
         int chunkY = loc.getBlockZ() >> 4;
         UUID world = player.getWorld().getUID();
         PresenceData presenceData = DataSource.getData();
-        PlayerRecord leader = presenceData.getOwner(world, chunkX, chunkY);
+        PlayerAttachedScore leader = presenceData.getOwner(world, chunkX, chunkY);
         Score claimownerPresence = SCOREBOARD_CLAIM_OWNER.get(playerUID);
         Score ownPresence = SCOREBOARD_CLAIM_SELF.get(playerUID);
         Score successorPresence = SCOREBOARD_CLAIM_SUCCESSOR.get(playerUID);
@@ -716,7 +737,7 @@ public class PresenceBukkit extends JavaPlugin {
             successorPresence.setScore(0);
             return;
         }
-        PlayerRecord successor = presenceData.getSuccessor(world, chunkX, chunkY);
+        PlayerAttachedScore successor = presenceData.getSuccessor(world, chunkX, chunkY);
         claimownerPresence.setScore(leader.score().get());
         if (leader.getPlayer().equals(playerUID)) {
             ownPresence.setScore(leader.score().get());

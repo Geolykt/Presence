@@ -22,6 +22,10 @@ import java.util.zip.Checksum;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import de.geolykt.presence.common.util.PlayerAttachedPosition;
+import de.geolykt.presence.common.util.PlayerAttachedScore;
+import de.geolykt.presence.common.util.WorldPosition;
+
 import it.unimi.dsi.fastutil.io.FastByteArrayOutputStream;
 
 /**
@@ -38,13 +42,13 @@ public class PresenceData {
     @NotNull
     private final ChunkGroupManager chunkGroups = new ChunkGroupManager();
 
-    private final Map<PlayerPosition, PlayerRecord> counts = new ConcurrentHashMap<>();
+    private final Map<PlayerAttachedPosition, PlayerAttachedScore> counts = new ConcurrentHashMap<>();
 
-    private final Map<WorldPosition, PlayerRecord> leaders = new ConcurrentHashMap<>();
+    private final Map<WorldPosition, PlayerAttachedScore> leaders = new ConcurrentHashMap<>();
 
     private final double recursiveTick;
 
-    private final Map<WorldPosition, PlayerRecord> successors = new ConcurrentHashMap<>();
+    private final Map<WorldPosition, PlayerAttachedScore> successors = new ConcurrentHashMap<>();
 
     public PresenceData(double tickNearbyChance) {
         recursiveTick = tickNearbyChance;
@@ -52,7 +56,7 @@ public class PresenceData {
 
     public boolean canAttack(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -61,7 +65,7 @@ public class PresenceData {
 
     public boolean canAttackNamed(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -70,7 +74,7 @@ public class PresenceData {
 
     public boolean canBreak(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -79,7 +83,7 @@ public class PresenceData {
 
     public boolean canBuild(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -88,7 +92,7 @@ public class PresenceData {
 
     public boolean canHarvest(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -97,7 +101,7 @@ public class PresenceData {
 
     public boolean canInteractWithBlock(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -106,7 +110,7 @@ public class PresenceData {
 
     public boolean canInteractWithEntities(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -115,7 +119,7 @@ public class PresenceData {
 
     public boolean canTrample(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
-        PlayerRecord record = leaders.get(pos);
+        PlayerAttachedScore record = leaders.get(pos);
         if (record == null) {
             return true;
         }
@@ -128,12 +132,12 @@ public class PresenceData {
     }
 
     @Nullable
-    public PlayerRecord getOwner(@NotNull UUID world, int x, int y) {
+    public PlayerAttachedScore getOwner(@NotNull UUID world, int x, int y) {
         return leaders.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
     public int getPresence(@NotNull UUID player, @NotNull UUID world, int x, int y) {
-        PlayerRecord record = counts.get(new PlayerPosition(player, new WorldPosition(world, hashPositions(x, y))));
+        PlayerAttachedScore record = counts.get(new PlayerAttachedPosition(player, new WorldPosition(world, hashPositions(x, y))));
         if (record == null) {
             return 0;
         }
@@ -142,7 +146,7 @@ public class PresenceData {
 
 
     @Nullable
-    public PlayerRecord getSuccessor(UUID world, int x, int y) {
+    public PlayerAttachedScore getSuccessor(UUID world, int x, int y) {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
     }
 
@@ -187,14 +191,14 @@ public class PresenceData {
             long pos = dataIn.readLong();
 
             WorldPosition worldPos = new WorldPosition(world, pos);
-            PlayerPosition entry  = new PlayerPosition(player, worldPos);
+            PlayerAttachedPosition entry  = new PlayerAttachedPosition(player, worldPos);
 
-            PlayerRecord oldLeader = leaders.get(worldPos);
-            PlayerRecord loadedPlayer = new PlayerRecord(player, new AtomicInteger(value));
+            PlayerAttachedScore oldLeader = leaders.get(worldPos);
+            PlayerAttachedScore loadedPlayer = new PlayerAttachedScore(player, new AtomicInteger(value));
             if (oldLeader == null || oldLeader.score().get() < value) {
                 leaders.put(worldPos, loadedPlayer); // Set the leader to a more accurate value
             } else {
-                PlayerRecord successor = successors.get(worldPos);
+                PlayerAttachedScore successor = successors.get(worldPos);
                 if (successor == null || successor.score().get() < value) {
                     // Update successor
                     successors.put(worldPos, loadedPlayer);
@@ -249,10 +253,10 @@ public class PresenceData {
 
     protected void saveStateToStream(OutputStream out) throws IOException {
         DataOutputStream dataOut = new DataOutputStream(out);
-        for (Map.Entry<PlayerPosition, PlayerRecord> entry : counts.entrySet()) {
+        for (Map.Entry<PlayerAttachedPosition, PlayerAttachedScore> entry : counts.entrySet()) {
             dataOut.write(1);
             dataOut.writeInt(entry.getValue().score().get());
-            PlayerPosition de = entry.getKey();
+            PlayerAttachedPosition de = entry.getKey();
             dataOut.writeLong(de.pos().world().getMostSignificantBits());
             dataOut.writeLong(de.pos().world().getLeastSignificantBits());
             dataOut.writeLong(de.player().getMostSignificantBits());
@@ -279,11 +283,11 @@ public class PresenceData {
         }
         long hashedPosition = hashPositions(x, y);
         WorldPosition worldPos = new WorldPosition(world, hashedPosition);
-        PlayerPosition entry = new PlayerPosition(id, worldPos);
-        PlayerRecord tickedRecord = counts.get(entry);
+        PlayerAttachedPosition entry = new PlayerAttachedPosition(id, worldPos);
+        PlayerAttachedScore tickedRecord = counts.get(entry);
         if (tickedRecord == null) {
-            tickedRecord = new PlayerRecord(world, new AtomicInteger(0));
-            PlayerRecord retain = counts.putIfAbsent(entry, tickedRecord);
+            tickedRecord = new PlayerAttachedScore(world, new AtomicInteger(0));
+            PlayerAttachedScore retain = counts.putIfAbsent(entry, tickedRecord);
             if (retain != null) { // Race condition
                 tickedRecord = retain;
             }
@@ -291,7 +295,7 @@ public class PresenceData {
         tickedRecord.score().getAndIncrement();
 
         do {
-            PlayerRecord oldLeader = leaders.get(worldPos);
+            PlayerAttachedScore oldLeader = leaders.get(worldPos);
             if (oldLeader == null) { // This is a previously untouched claim, set the leader
                 oldLeader = leaders.putIfAbsent(worldPos, tickedRecord);
             }
@@ -303,7 +307,7 @@ public class PresenceData {
                     }
                 } else {
                     do {
-                        PlayerRecord oldSuccessor = successors.get(worldPos);
+                        PlayerAttachedScore oldSuccessor = successors.get(worldPos);
                         if (oldSuccessor == null) { // There is no successor, so we can easily change it now
                             oldSuccessor = successors.putIfAbsent(worldPos, tickedRecord);
                         }

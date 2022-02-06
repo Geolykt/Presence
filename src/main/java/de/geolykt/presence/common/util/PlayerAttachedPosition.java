@@ -1,4 +1,4 @@
-package de.geolykt.presence.common;
+package de.geolykt.presence.common.util;
 
 import java.util.UUID;
 
@@ -7,11 +7,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A record that is used to pair a chunk position to a player.
  */
-record PlayerPosition(@NotNull UUID player, @NotNull WorldPosition pos) {
+public record PlayerAttachedPosition(@NotNull UUID player, @NotNull WorldPosition pos) {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof PlayerPosition other) {
+        if (obj instanceof PlayerAttachedPosition other) {
             return other.player.equals(player) && other.pos.equals(pos);
         }
         return false;

@@ -1,4 +1,4 @@
-package de.geolykt.presence.common;
+package de.geolykt.presence.common.util;
 
 import java.util.UUID;
 

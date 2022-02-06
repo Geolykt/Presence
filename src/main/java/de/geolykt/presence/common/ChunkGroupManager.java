@@ -23,12 +23,17 @@ import org.jetbrains.annotations.Nullable;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
+import de.geolykt.presence.common.util.ElementAlreadyExistsException;
+import de.geolykt.presence.common.util.PlayerAttachedString;
+import de.geolykt.presence.common.util.WorldPosition;
+
 public class ChunkGroupManager {
 
     private final Map<WorldPosition, ChunkGroup> groupedChunks = new ConcurrentHashMap<>();
-    private final Map<String, ChunkGroup> groupNames = new ConcurrentHashMap<>();
+    private final Map<PlayerAttachedString, ChunkGroup> groupNames = new ConcurrentHashMap<>();
     private final Map<UUID, PermissionMatrix> playerDefaults = new ConcurrentHashMap<>();
     private final Map<UUID, Set<UUID>> trustedPlayers = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<ChunkGroup>> playerGroups = new ConcurrentHashMap<>();
 
     /**
      * Adds the player "trusted" to the list of trusted players of the player "truster".
@@ -313,6 +318,7 @@ public class ChunkGroupManager {
         groupNames.clear();
         playerDefaults.clear();
         trustedPlayers.clear();
+        playerGroups.clear();
 
         while(readElementStartByte(in)) {
             UUID ownerId = new UUID(in.readLong(), in.readLong());
@@ -323,7 +329,16 @@ public class ChunkGroupManager {
             }
             Collection<WorldPosition> positions = new HashSet<>();
             ChunkGroup cgroup = new ChunkGroup(groupName, ownerId, new AtomicReference<>(perms), positions);
-            groupNames.put(groupName, cgroup);
+            groupNames.put(new PlayerAttachedString(ownerId, groupName), cgroup);
+
+            Set<ChunkGroup> groups = playerGroups.get(ownerId);
+            if (groups == null) {
+                groups = ConcurrentHashMap.newKeySet();
+                playerGroups.put(ownerId, groups);
+            }
+            groups.add(cgroup);
+
+            playerGroups.put(ownerId, null);
             while(readElementStartByte(in)) {
                 WorldPosition pos = new WorldPosition(new UUID(in.readLong(), in.readLong()), in.readLong());
                 positions.add(pos);
@@ -442,5 +457,129 @@ public class ChunkGroupManager {
      */
     public void setPlayerDefaultPermissions(@NotNull UUID player, @NotNull PermissionMatrix perms) {
         playerDefaults.put(player, perms);
+    }
+
+    /**
+     * Obtains the {@link ChunkGroup ChunkGruops} owned by the given player. It may return null if the player
+     * does not own any chunk groups. Furthermore the returned instance is immutable so the developer does not cause
+     * mild temporary damage. Under rare circumstances the returned set can be empty, however after a restart
+     * it is likely to go null.
+     *
+     * @param player The player to get the owned groups from
+     * @return A set of the chunk groups owned by the player, or null if the player does not own any groups.
+     */
+    @Nullable
+    public Set<ChunkGroup> getOwnedGroups(@NotNull UUID player) {
+        return this.playerGroups.get(player);
+    }
+
+    /**
+     * Creates an empty chunk group with the specified name. If there is already a chunk
+     * group attached to the same name-player pair, then this method will throw a {@link ElementAlreadyExistsException}.
+     * This method is safe to call in a concurrent environment.
+     *
+     * @param player The owner of the returned chunk group
+     * @param name The name of the chunk group
+     * @return The newly created instance
+     * @throws ElementAlreadyExistsException If there is already a chunk owned by the player with the specified name
+     */
+    @NotNull
+    public ChunkGroup createChunkGroup(@NotNull UUID player, @NotNull String name) throws ElementAlreadyExistsException {
+        PermissionMatrix perms = PermissionMatrix.DEFAULT;
+        Set<WorldPosition> positions = ConcurrentHashMap.newKeySet();
+        if (positions == null) {
+            throw new NullPointerException();
+        }
+        ChunkGroup group = new ChunkGroup(name, player, new AtomicReference<>(perms), positions);
+        if (groupNames.putIfAbsent(new PlayerAttachedString(player, name), group) != null) {
+            throw new ElementAlreadyExistsException("There is already a chunk group with the given owner and name.");
+        }
+        Set<ChunkGroup> playerGroups = this.playerGroups.get(player);
+        if (playerGroups == null) {
+            playerGroups = ConcurrentHashMap.newKeySet();
+            Set<ChunkGroup> retained = this.playerGroups.putIfAbsent(player, playerGroups);
+            if (retained != null) {
+                playerGroups = retained;
+            }
+        }
+        playerGroups.add(group);
+        return group;
+    }
+
+    @Nullable
+    public ChunkGroup getGroupAt(@NotNull WorldPosition position) {
+        return groupedChunks.get(position);
+    }
+
+    @Nullable
+    public ChunkGroup getChunkGroup(@NotNull UUID player, @NotNull String name) {
+        return groupNames.get(new PlayerAttachedString(player, name));
+    }
+
+    /**
+     * Assigns a chunk to a given group. Like many other operations within this class, this method is perfectly
+     * safe to invoke in a concurrent environment.
+     * If this operation is performed twice in a row with no other operations happening between that, then it is guaranteed
+     * to return true twice or false twice.
+     *
+     * @param group The group to assign the chunk to
+     * @param position A reference to the chunk that is assigned
+     * @return True if the chunk position was added to the chunk group without problems. False if it was not performed (e.g. already assigned to a different group)
+     */
+    public boolean addChunk(@NotNull ChunkGroup group, @NotNull WorldPosition position) {
+        ChunkGroup old = groupedChunks.putIfAbsent(position, group);
+        if (old == group) {
+            return true;
+        }
+        if (old == null) {
+            boolean ch = group.claimedChunks().add(position);
+            if (!ch) {
+                System.err.println("Error code L538. Please report this issue to the maintainers of Presence.");
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Removes a chunk from the given group. Like many other operations within this class, this method is perfectly
+     * safe to invoke in a concurrent environment.
+     * If this operation is performed twice in a row with no other operations happening between that, then it is guaranteed
+     * to return false the second time.
+     * If the expected group does not match then false will be returned, so if this method returns false it does not mean
+     * that it is neutral afterwards.
+     *
+     * @param group The group to assign the chunk to
+     * @param position A reference to the chunk that is assigned
+     * @return True if a change occurred, false otherwise
+     */
+    public boolean removeChunk(@NotNull ChunkGroup group, @NotNull WorldPosition position) {
+        if (!group.claimedChunks().remove(position)) {
+            return false;
+        }
+        if (!groupedChunks.remove(position, group)) {
+            // Race condition. I am unsure how to solve this one
+            System.err.println("Error code L563. Please report this issue to the maintainers of Presence.");
+        }
+        return true;
+    }
+
+    public void setChunk(@NotNull ChunkGroup group, @NotNull WorldPosition position) {
+        ChunkGroup currentAssigned = groupedChunks.get(position);
+        if (currentAssigned == group) {
+            return;
+        }
+        while (!addChunk(group, position)) {
+            currentAssigned = groupedChunks.get(position);
+            if (currentAssigned == null) { // shouldn't happen
+                continue;
+            }
+            while (!removeChunk(currentAssigned, position)) {
+                currentAssigned = groupedChunks.get(position);
+                if (currentAssigned == null) {
+                    break;
+                }
+            }
+        }
     }
 }
