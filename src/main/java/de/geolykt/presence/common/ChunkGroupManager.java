@@ -376,4 +376,17 @@ public class ChunkGroupManager {
         out.write(Longs.toByteArray(cout.getChecksum().getValue()));
         out.write(tout.toByteArray());
     }
+
+    /**
+     * Set the default permission of a player. These permission are used for every claim of the player that is not within a
+     * chunk group. This method is guaranteed to be safe to use in concurrent environments however it may ignore the other
+     * permissions that are set. After lengthy evaluations I came to the conclusion that this is the best compromise we can
+     * do.
+     *
+     * @param player The player to apply the permissions for
+     * @param perms The new permissions
+     */
+    public void setPlayerDefaultPermissions(@NotNull UUID player, @NotNull PermissionMatrix perms) {
+        playerDefaults.put(player, perms);
+    }
 }

@@ -37,10 +37,14 @@ import org.bukkit.scoreboard.RenderType;
 import org.bukkit.scoreboard.Score;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.ScoreboardManager;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -48,6 +52,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
+import de.geolykt.presence.common.PermissionMatrix;
 import de.geolykt.presence.common.PlayerRecord;
 import de.geolykt.presence.common.PresenceData;
 
@@ -65,6 +70,10 @@ public class PresenceBukkit extends JavaPlugin {
     private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>();
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
     private static final Map<UUID, Long> GRACEFUL_LAND = new HashMap<>();
+
+    @NotNull
+    private static final JoinConfiguration SPACE_WITH_SPACE_SUFFIX = JoinConfiguration.builder()
+            .suffix(Component.space()).separator(Component.space()).build();
 
     private boolean successfullLoad = false;
 
@@ -188,6 +197,12 @@ public class PresenceBukkit extends JavaPlugin {
                 }
                 return true;
             }
+            case "perm":
+            case "perms":
+            case "permission":
+            case "permissions":
+                processPermissions(sender, args);
+                return true;
             default:
                 sender.sendMessage(Component.text("Unknown subcommand.", NamedTextColor.RED));
                 return true;
@@ -254,6 +269,126 @@ public class PresenceBukkit extends JavaPlugin {
             break;
         }
         return false;
+    }
+
+    @NotNull
+    @Contract(value = "_, !null -> new; _, null -> fail", pure = true)
+    private Component texifyPermissionBitfield(int permissions, @NotNull String commandPrefix) {
+        boolean owner = (permissions & PermissionMatrix.PERSON_OWNER) != 0;
+        boolean trusted = (permissions & PermissionMatrix.PERSON_TRUSTED) != 0;
+        boolean visitor = (permissions & PermissionMatrix.PERSON_STRANGER) != 0;
+        Component ownerComp;
+        Component trustedComp;
+        Component visitorComp;
+        if (owner) {
+            ownerComp = Component.text('O', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner deny"));
+        } else {
+            ownerComp = Component.text('O', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner allow"));
+        }
+        if (trusted) {
+            trustedComp = Component.text('T', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted deny"));
+        } else {
+            trustedComp = Component.text('T', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted allow"));
+        }
+        if (visitor) {
+            visitorComp = Component.text('V', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor deny"));
+        } else {
+            visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor allow"));
+        }
+        return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
+    }
+
+    @Contract(value = "null, _, _, _ -> fail", pure = true)
+    @Nullable
+    private PermissionMatrix alter(@NotNull PermissionMatrix perms, @NotNull String name, int person, boolean allow) {
+        switch(name.toLowerCase(Locale.ROOT)) {
+        case "attack":
+            return perms.alterAttack(person, allow);
+        case "attacknamed":
+            return perms.alterAttackNamed(person, allow);
+        case "build":
+            return perms.alterBuild(person, allow);
+        case "destroy":
+            return perms.alterDestroy(person, allow);
+        case "harvest":
+            return perms.alterHarvestCrops(person, allow);
+        case "interact":
+            return perms.alterInteract(person, allow);
+        case "interactentity":
+            return perms.alterInteractEntity(person, allow);
+        case "trample":
+            return perms.alterTrample(person, allow);
+        default:
+            return null;
+        }
+    }
+
+    private void processPermissions(@NotNull CommandSender sender, @NotNull String[] args) {
+        Player p;
+        if (sender instanceof Player var10001) {
+            p = var10001;
+        } else {
+            sender.sendMessage(Component.text("Only players can manage their permissions!", NamedTextColor.RED));
+            return;
+        }
+        if (args.length != 1 && args.length != 6) {
+            sender.sendMessage(Component.text("Syntax is: /claims " + args[0] + " set global|<group> <action> <person> allow|deny", NamedTextColor.RED));
+            return;
+        }
+        PermissionMatrix perms = DataSource.getData().getChunkGroupManager().getPermissionMatrix(p.getUniqueId(), null);
+
+        if (args.length == 6) {
+            if (args[1].equals("set")) {
+                boolean allow = args[5].equalsIgnoreCase("allow");
+                if (!allow && !args[5].equalsIgnoreCase("deny")) {
+                    sender.sendMessage(Component.text("Syntax is: /claims " + args[0] + " set global|<group> <action> <person> allow|deny", NamedTextColor.RED));
+                    return;
+                }
+                int person;
+                switch (args[4].toLowerCase(Locale.ROOT)) {
+                case "owner":
+                case "self":
+                    person = PermissionMatrix.PERSON_OWNER;
+                    break;
+                case "trusted":
+                case "friend":
+                case "ally":
+                    person = PermissionMatrix.PERSON_TRUSTED;
+                    break;
+                case "other":
+                case "visitor":
+                case "foreign":
+                case "stranger":
+                    person = PermissionMatrix.PERSON_STRANGER;
+                    break;
+                default:
+                    sender.sendMessage(Component.text("Unknown person: " + args[4] + ", should be either owner, trusted or visitor.", NamedTextColor.RED));
+                    return;
+                }
+                if (args[2].equals("global")) {
+                   perms = alter(perms, args[3], person, allow);
+                   if (perms == null) {
+                       sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                       return;
+                   }
+                   DataSource.getData().getChunkGroupManager().setPlayerDefaultPermissions(p.getUniqueId(), perms);
+                }
+            }
+        }
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set global attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set global attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set global build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set global destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set global harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set global interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set global interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set global trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
     }
 
     private void removeFlight(Player player) {
