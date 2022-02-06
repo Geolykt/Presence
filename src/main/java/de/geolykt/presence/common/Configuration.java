@@ -1,5 +1,10 @@
 package de.geolykt.presence.common;
 
+import java.util.Set;
+
+import org.bukkit.Material;
+import org.jetbrains.annotations.NotNull;
+
 public class Configuration {
 
     private final int autosaveInterval;
@@ -9,15 +14,23 @@ public class Configuration {
     private final double tickNearbyChunksChance;
     private final boolean allowFlight;
 
+    @NotNull
+    private final Set<Material> harvestableCrops;
+
     public Configuration(int sbRefresh, int tickInterval, int travelInterval,
-            int autosave, int claimSizeInChunks, double recursiveTickChance,
-            boolean flightInClaims) {
-        scoreboardRefreshInterval = sbRefresh;
-        claimTickInterval = tickInterval;
-        claimTravelInterval = travelInterval;
-        autosaveInterval = autosave;
-        tickNearbyChunksChance = recursiveTickChance;
-        allowFlight = flightInClaims;
+            int autosave, double recursiveTickChance,
+            boolean flightInClaims, @NotNull Set<Material> harvestableCrops) {
+        this.scoreboardRefreshInterval = sbRefresh;
+        this.claimTickInterval = tickInterval;
+        this.claimTravelInterval = travelInterval;
+        this.autosaveInterval = autosave;
+        this.tickNearbyChunksChance = recursiveTickChance;
+        this.allowFlight = flightInClaims;
+        this.harvestableCrops = harvestableCrops;
+    }
+
+    public boolean allowsFlight() {
+        return allowFlight;
     }
 
     /**
@@ -52,7 +65,15 @@ public class Configuration {
         return tickNearbyChunksChance;
     }
 
-    public boolean allowsFlight() {
-        return allowFlight;
+    /**
+     * Checks whether a given material is an harvestable crop. This is used indirectly by
+     * {@link PermissionMatrix#canHarvestCrops(int)} and other methods.
+     * The server owner defines what a harvestable crops is via the configuration.
+     *
+     * @param mat The material to check
+     * @return True if the material "mat" is considered to be a harvestable crop according to the configuration
+     */
+    public boolean isHarvestableCrop(@NotNull Material mat) {
+        return this.harvestableCrops.contains(mat);
     }
 }

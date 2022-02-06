@@ -17,6 +17,7 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -36,11 +37,13 @@ import org.jetbrains.annotations.NotNull;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
+import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PresenceData;
 
 public class PresenceListener implements Listener {
     private final PresenceData data = DataSource.getData();
+    private final Configuration presenceConfig = DataSource.getConfiguration();
 
     @NotNull
     private final Map<UUID, Long> lastComplainTime = new ConcurrentHashMap<>();
@@ -57,7 +60,7 @@ public class PresenceListener implements Listener {
         Long lastComplain = lastComplainTime.get(player.getUniqueId());
         if (lastComplain == null || time > (lastComplain + 10_000)) {
             lastComplainTime.put(player.getUniqueId(), lastComplain);
-            player.sendMessage(Component.text("You cannot perform this action as the owner of this claim does not trust you.", NamedTextColor.RED));
+            player.sendMessage(Component.text("You cannot perform this action as the owner of this claim does not allow doing this action in this chunk.", NamedTextColor.RED));
         }
     }
 
@@ -70,11 +73,18 @@ public class PresenceListener implements Listener {
         */
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canBreak(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
-            e.setCancelled(true);
-            noteCancelled(e.getPlayer());
+        if (presenceConfig.isHarvestableCrop(block.getType())) {
+            if (!data.canHarvest(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+                e.setCancelled(true);
+                noteCancelled(e.getPlayer());
+            }
         } else {
-            block.removeMetadata("presence_spongeplacer", pl);
+            if (!data.canBreak(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+                e.setCancelled(true);
+                noteCancelled(e.getPlayer());
+            } else {
+                block.removeMetadata("presence_spongeplacer", pl);
+            }
         }
     }
 
@@ -97,7 +107,12 @@ public class PresenceListener implements Listener {
         }
         int chunkX = block.getX() >> 4;
         int chunkY = block.getZ() >> 4;
-        if (!data.canInteractWithBlock(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+        if (e.getAction() == Action.PHYSICAL && block.getType() == Material.FARMLAND) {
+            if (!data.canTrample(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
+                e.setCancelled(true);
+                noteCancelled(e.getPlayer());
+            }
+        } else if (!data.canInteractWithBlock(e.getPlayer().getUniqueId(), block.getWorld().getUID(), chunkX, chunkY)) {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }

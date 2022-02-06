@@ -11,3 +11,11 @@ autosave-interval: 6001
 tick-nearby-chance: 0.05
 
 enable-claim-fly: true
+
+harvestable-crops:
+  - "beetroots"
+  - "carrots"
+  - "potatoes"
+  - "wheat"
+  - "melon"
+  - "pumpkin"

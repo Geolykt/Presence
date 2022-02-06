@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,7 +16,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -273,13 +277,42 @@ public class PresenceBukkit extends JavaPlugin {
         // Load data and configuration
         saveDefaultConfig();
         FileConfiguration bukkitCfg = getConfig();
+        Set<Material> harvestableCrops = new HashSet<>();
+        for (String s : bukkitCfg.getStringList("harvestable-crops")) {
+            if (s.codePointAt(0) != '#') {
+                String var10001 = s.substring(1);
+                if (var10001 == null) {
+                    throw new NullPointerException(s);
+                }
+                NamespacedKey key = NamespacedKey.fromString(var10001);
+                if (key == null) {
+                    throw new IllegalStateException("Invalid namespaced key \"" + s + "\" is the harvestable-crops list.");
+                }
+                Tag<@NotNull Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, key, Material.class);
+                if (tag == null) {
+                    // Try it again with the item registry
+                    tag = Bukkit.getTag(Tag.REGISTRY_ITEMS, key, Material.class);
+                }
+                if (tag == null) {
+                    getSLF4JLogger().error("The tag \"{}\" in the harvestable-crops list does not exist.", var10001);
+                } else {
+                    harvestableCrops.addAll(tag.getValues());
+                }
+            } else {
+                Material mat = Material.matchMaterial(s);
+                if (mat == null) {
+                    getSLF4JLogger().error("There is no material \"{}\", even though it was set in the harvestable-crops list.", s);
+                } else {
+                    harvestableCrops.add(mat);
+                }
+            }
+        }
         Configuration config = new Configuration(bukkitCfg.getInt("scoreboard-refresh"), 
                 bukkitCfg.getInt("tick-interval"),
                 bukkitCfg.getInt("travel-interval"),
                 bukkitCfg.getInt("autosave-interval"),
-                bukkitCfg.getInt("claim-size"),
                 bukkitCfg.getDouble("tick-nearby-chance"),
-                bukkitCfg.getBoolean("enable-claim-fly"));
+                bukkitCfg.getBoolean("enable-claim-fly"), harvestableCrops);
         DataSource.setConfiguration(config);
         DataSource.setData(new PresenceData(config.getTickNearbyChunksChance()));
 
