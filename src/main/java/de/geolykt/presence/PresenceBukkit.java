@@ -134,6 +134,7 @@ public class PresenceBukkit extends JavaPlugin {
                 sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " map" + ChatColor.RED + " : " + ChatColor.WHITE + "prints a map of the surroundings.");
                 sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " trust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + "allows a player to modify your property.");
                 sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " untrust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + "reverses the trust command.");
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " perm" + ChatColor.RED + " : " + ChatColor.WHITE + "Manage the permissions of your claims.");
                 return true;
             case "togglesb":
                 if (sender instanceof Player) {
@@ -282,24 +283,30 @@ public class PresenceBukkit extends JavaPlugin {
         Component visitorComp;
         if (owner) {
             ownerComp = Component.text('O', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner deny"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner deny"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for you.")));
         } else {
             ownerComp = Component.text('O', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner allow"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " owner allow"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for you.")));
         }
         if (trusted) {
             trustedComp = Component.text('T', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted deny"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted deny"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for trusted people.")));
         } else {
             trustedComp = Component.text('T', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted allow"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted allow"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for trusted people.")));
         }
         if (visitor) {
             visitorComp = Component.text('V', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor deny"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor deny"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current allowed for visitors.")));
         } else {
             visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor allow"));
+                    .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor allow"))
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for visitors.")));
         }
         return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
     }
@@ -381,6 +388,8 @@ public class PresenceBukkit extends JavaPlugin {
                 }
             }
         }
+        sender.sendMessage(Component.empty());
+        sender.sendMessage(Component.empty());
         sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set global attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
         sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set global attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
         sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set global build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
@@ -604,7 +613,7 @@ public class PresenceBukkit extends JavaPlugin {
             if (args.length > 1) {
                 return null;
             }
-            List<String> sList = new ArrayList<>(Arrays.asList("togglesb", "help", "map", "trust", "untrust"));
+            List<String> sList = new ArrayList<>(Arrays.asList("togglesb", "help", "map", "trust", "untrust", "perm"));
             if (args.length == 1) {
                 sList.removeIf(s -> !s.startsWith(args[0]));
             }

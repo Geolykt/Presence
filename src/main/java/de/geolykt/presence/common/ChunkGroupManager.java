@@ -21,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
 
 public class ChunkGroupManager {
 
@@ -296,11 +297,24 @@ public class ChunkGroupManager {
         return trustedPlayers.contains(trusted);
     }
 
+    private boolean readElementStartByte(@NotNull InputStream input) throws IOException {
+        int read = input.read();
+        if (read == 0) {
+            return false;
+        }
+        if (read != 1) {
+            throw new IOException("Encountered non-binary element start byte. Expected 0 or 1 but got " + read);
+        }
+        return true;
+    }
+
     protected void load(@NotNull DataInputStream in) throws IOException {
         groupedChunks.clear();
         groupNames.clear();
+        playerDefaults.clear();
+        trustedPlayers.clear();
 
-        for (int var10001 = in.readInt(); var10001 != 0; var10001--) {
+        while(readElementStartByte(in)) {
             UUID ownerId = new UUID(in.readLong(), in.readLong());
             String groupName = in.readUTF();
             PermissionMatrix perms = PermissionMatrix.deserialize(in);
@@ -310,19 +324,37 @@ public class ChunkGroupManager {
             Collection<WorldPosition> positions = new HashSet<>();
             ChunkGroup cgroup = new ChunkGroup(groupName, ownerId, new AtomicReference<>(perms), positions);
             groupNames.put(groupName, cgroup);
-            for (int var10002 = in.readInt(); var10002 != 0; var10002--) {
+            while(readElementStartByte(in)) {
                 WorldPosition pos = new WorldPosition(new UUID(in.readLong(), in.readLong()), in.readLong());
                 positions.add(pos);
                 groupedChunks.put(pos, cgroup);
             }
         }
+
+        while (readElementStartByte(in)) {
+            UUID player = new UUID(in.readLong(), in.readLong());
+            PermissionMatrix perms = PermissionMatrix.deserialize(in);
+            playerDefaults.put(player, perms);
+        }
+
+        while (readElementStartByte(in)) {
+            UUID truster = new UUID(in.readLong(), in.readLong());
+            Set<UUID> trusted = ConcurrentHashMap.newKeySet();
+            while (readElementStartByte(in)) {
+                trusted.add(new UUID(in.readLong(), in.readLong()));
+            }
+            if (trusted.isEmpty()) {
+                continue; // Slowly purge out useless keys
+            }
+            trustedPlayers.put(truster, trusted);
+        }
     }
 
     public void loadSafely(@NotNull InputStream in) throws IOException {
-        if (in.read() != 0) {
+        if (Shorts.fromBytes((byte) in.read(), (byte) in.read()) != 0) {
             throw new IOException("Invalid version. Expected 0");
         }
-        long shouldBeChecksum = Longs.fromByteArray(in.readNBytes(4));
+        long shouldBeChecksum = Longs.fromByteArray(in.readNBytes(8));
         CheckedInputStream cin = new CheckedInputStream(in, new Adler32());
         load(new DataInputStream(cin));
         if (cin.getChecksum().getValue() != shouldBeChecksum) {
@@ -351,30 +383,52 @@ public class ChunkGroupManager {
     }
 
     protected void save(@NotNull DataOutputStream out) throws IOException {
-        Collection<ChunkGroup> groups = groupNames.values();
-        out.writeInt(groups.size());
-        for (ChunkGroup cgroup : groups) {
+        for (ChunkGroup cgroup : groupNames.values()) {
+            out.write(1);
             out.writeLong(cgroup.owner().getMostSignificantBits());
             out.writeLong(cgroup.owner().getLeastSignificantBits());
             out.writeUTF(cgroup.name());
             cgroup.permissions().serialize(out);
-            Collection<WorldPosition> chunks = (Collection<WorldPosition>) cgroup.claimedChunks();
-            out.writeInt(chunks.size());
-            for (WorldPosition pos : chunks) {
+            for (WorldPosition pos : cgroup.claimedChunks()) {
+                out.write(1);
                 out.writeLong(pos.world().getMostSignificantBits());
                 out.writeLong(pos.world().getLeastSignificantBits());
                 out.writeLong(pos.chunkPos());
             }
+            out.write(0);
         }
+        out.write(0);
+
+        for (Map.Entry<UUID, PermissionMatrix> e : playerDefaults.entrySet()) {
+            out.write(1);
+            out.writeLong(e.getKey().getMostSignificantBits());
+            out.writeLong(e.getKey().getLeastSignificantBits());
+            e.getValue().serialize(out);
+        }
+        out.write(0);
+
+        for (Map.Entry<UUID, Set<UUID>> e : trustedPlayers.entrySet()) {
+            out.write(1);
+            out.writeLong(e.getKey().getMostSignificantBits());
+            out.writeLong(e.getKey().getLeastSignificantBits());
+            for (UUID id : e.getValue()) {
+                out.write(1);
+                out.writeLong(id.getMostSignificantBits());
+                out.writeLong(id.getLeastSignificantBits());
+            }
+            out.write(0);
+        }
+        out.write(0);
     }
 
     public void saveSafely(@NotNull OutputStream out) throws IOException {
         ByteArrayOutputStream tout = new ByteArrayOutputStream();
-        CheckedOutputStream cout = new CheckedOutputStream(out, new Adler32());
+        CheckedOutputStream cout = new CheckedOutputStream(tout, new Adler32());
         save(new DataOutputStream(cout));
-        out.write(0);
+        out.write(Shorts.toByteArray((short) 0));
         out.write(Longs.toByteArray(cout.getChecksum().getValue()));
         out.write(tout.toByteArray());
+        out.flush();
     }
 
     /**

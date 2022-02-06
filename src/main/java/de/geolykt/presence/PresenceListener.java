@@ -59,7 +59,7 @@ public class PresenceListener implements Listener {
         long time = System.currentTimeMillis();
         Long lastComplain = lastComplainTime.get(player.getUniqueId());
         if (lastComplain == null || time > (lastComplain + 10_000)) {
-            lastComplainTime.put(player.getUniqueId(), lastComplain);
+            lastComplainTime.put(player.getUniqueId(), time);
             player.sendMessage(Component.text("You cannot perform this action as the owner of this claim does not allow doing this action in this chunk.", NamedTextColor.RED));
         }
     }
