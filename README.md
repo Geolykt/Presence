@@ -5,8 +5,8 @@ while others will be denied entry.
 
 ## Important to note quirks:
 
-   - Due to how the plugins works, right now everyone is able to claim every chunk (neutral claims will be added soon)
-   - The plugin does not protected against explosions (this will be changed soon) and lava/water flows
+   - Due to how the plugins works, right now everyone is able to claim every chunk (neutral claims might be added one day)
+   - The plugin does not protect against explosions (this will be changed soon (TM)) and lava/water flows
 
 
 ## Features:
@@ -17,6 +17,9 @@ while others will be denied entry.
    - Map of claims via /claims map
    - Player trust system
    - Integrated scoreboard (visible via /claims togglesb)
+   - Abillity for users to create chunk groups, which have their own permissions set up (usefull for public farms)
+   - Abillity for players to allow/disallow certain actions for different people (also usefull for public farms)
+   - Mostly atomic backend (i. e. other plugins can access as much data as they want on another thread without there being a performance penalty)
 
 
 ## Placeholder documentation:
