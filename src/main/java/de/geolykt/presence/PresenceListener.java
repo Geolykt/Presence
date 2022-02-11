@@ -14,17 +14,21 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.block.SpongeAbsorbEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -134,35 +138,58 @@ public class PresenceListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityHurt(EntityDamageByEntityEvent e) {
 
+        if (e.getCause() == DamageCause.BLOCK_EXPLOSION || e.getCause() == DamageCause.ENTITY_EXPLOSION) {
+            Location loc = e.getEntity().getLocation();
+            boolean bool = !data.canExplode(e.getEntity().getWorld().getUID(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+            if (bool) {
+                e.setCancelled(true);
+                return;
+            }
+        }
+
         if (e.getEntity() instanceof Monster mob && mob.getCustomName() == null) {
             return; // Hostile mobs can be attacked no matter what provided they do not have a nametag
         }
 
         Entity damager = e.getDamager();
+        UUID damagerUUID;
         if (damager instanceof Projectile) {
             ProjectileSource src = ((Projectile) damager).getShooter();
             if (src instanceof Player) {
-                damager = (Entity) src;
+                damager = (Player) src;
+                damagerUUID = ((Player) src).getUniqueId();
             } else {
                 return;
             }
-            // TODO wolves and cats could also attack the entity, but how do we get their owner?
+        } else if (damager instanceof Tameable tameable) {
+            damagerUUID = tameable.getOwnerUniqueId();
+            if (damagerUUID == null) {
+                return;
+            }
+            damager = null;
         } else if (!(damager instanceof Player)){
             return;
+        } else {
+            damagerUUID = damager.getUniqueId();
         }
+
         Location loc = e.getEntity().getLocation();
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
 
         if (e.getEntity().getCustomName() == null) {
-            if (!data.canAttack(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+            if (!data.canAttack(damagerUUID, loc.getWorld().getUID(), chunkX, chunkY)) {
                 e.setCancelled(true);
-                noteCancelled((Player) damager);
+                if (damager != null) {
+                    noteCancelled((Player) damager);
+                }
             }
         } else {
-            if (!data.canAttackNamed(damager.getUniqueId(), loc.getWorld().getUID(), chunkX, chunkY)) {
+            if (!data.canAttackNamed(damagerUUID, loc.getWorld().getUID(), chunkX, chunkY)) {
                 e.setCancelled(true);
-                noteCancelled((Player) damager);
+                if (damager != null) {
+                    noteCancelled((Player) damager);
+                }
             }
         }
     }
@@ -198,6 +225,20 @@ public class PresenceListener implements Listener {
             e.setCancelled(true);
             noteCancelled(e.getPlayer());
         }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onExplosion(BlockExplodeEvent evt) {
+        evt.blockList().removeIf(block -> {
+            return !data.canExplode(block.getWorld().getUID(), block.getX() >> 4, block.getZ() >> 4);
+        });
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onExplosion(EntityExplodeEvent evt) {
+        evt.blockList().removeIf(block -> {
+            return !data.canExplode(block.getWorld().getUID(), block.getX() >> 4, block.getZ() >> 4);
+        });
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)

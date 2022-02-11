@@ -6,7 +6,7 @@ while others will be denied entry.
 ## Important to note quirks:
 
    - Due to how the plugins works, right now everyone is able to claim every chunk (neutral claims might be added one day)
-   - The plugin does not protect against explosions (this will be changed soon (TM)) and lava/water flows
+   - The plugin does not protect against lava/water flows
 
 
 ## Features:

@@ -380,6 +380,16 @@ public class PresenceBukkit extends JavaPlugin {
                     player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractBlockBitfield()).append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
                     player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractEntityBitfield()).append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
                     player.sendMessage(texifyPermissionBitfieldReadonly(perms.getTrampleBitfield()).append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+
+                    Component comp;
+                    if (perms.getExplosionsEnabled()) {
+                        comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
+                                .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now.")));
+                    } else {
+                        comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
+                                .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now.")));
+                    }
+                    player.sendMessage(comp.append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
                 }
                 return;
             } else if (args[0].equalsIgnoreCase("assign")) {
@@ -428,6 +438,16 @@ public class PresenceBukkit extends JavaPlugin {
                 player.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + cgroup.name() + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
                 player.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + cgroup.name() + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
                 player.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + cgroup.name() + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+                Component comp;
+                if (perms.getExplosionsEnabled()) {
+                    comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+                } else {
+                    comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+                }
+                player.sendMessage(comp.clickEvent(ClickEvent.runCommand("/claims perm toggle " + cgroup.name() + " explosion"))
+                        .append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
             }
             return;
         }
@@ -538,8 +558,9 @@ public class PresenceBukkit extends JavaPlugin {
             sender.sendMessage(Component.text("Only players can manage their permissions!", NamedTextColor.RED));
             return;
         }
-        if (args.length != 1 && args.length != 6) {
+        if (args.length != 1 && args.length != 6 && args.length != 4) {
             sender.sendMessage(Component.text("Syntax is: /claims " + args[0] + " set global|<group> <action> <person> allow|deny", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Or: /claims " + args[0] + " toggle global|<group> <action>", NamedTextColor.RED));
             return;
         }
         PermissionMatrix perms = DataSource.getData().getChunkGroupManager().getPermissionMatrix(p.getUniqueId(), null);
@@ -602,7 +623,37 @@ public class PresenceBukkit extends JavaPlugin {
                     groupName = args[2];
                 }
             }
+        } else if (args.length == 4) {
+            if (args[1].equals("toggle")) {
+                if (!args[3].equals("explosion")) {
+                    sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                    return;
+                }
+                if (args[2].equals("global")) {
+                    perms = DataSource.getData().getChunkGroupManager().getPermissionMatrix(p.getUniqueId(), null);
+                    perms = perms.alterExplosions(!perms.getExplosionsEnabled());
+                    DataSource.getData().getChunkGroupManager().setPlayerDefaultPermissions(p.getUniqueId(), perms);
+                 } else {
+                     ChunkGroup group = DataSource.getData().getChunkGroupManager().getChunkGroup(p.getUniqueId(), args[2]);
+                     if (group == null) {
+                         sender.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                                 .append(Component.text(args[2], NamedTextColor.DARK_RED)));
+                         return;
+                     }
+                     while (true) {
+                         perms = group.permissions();
+                         PermissionMatrix oldPerm = perms;
+                         perms = perms.alterExplosions(!perms.getExplosionsEnabled());
+                         if (group.permissionRef().compareAndSet(oldPerm, perms)) {
+                             break;
+                         }
+                     }
+                     groupName = args[2];
+                 }
+                sender.sendMessage(Component.text("Action performed.", NamedTextColor.GREEN));
+            }
         }
+
         sender.sendMessage(Component.empty());
         sender.sendMessage(Component.empty());
         sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + groupName + " attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
@@ -613,6 +664,16 @@ public class PresenceBukkit extends JavaPlugin {
         sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + groupName + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
         sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + groupName + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
         sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + groupName + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+        Component comp;
+        if (perms.getExplosionsEnabled()) {
+            comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+        } else {
+            comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+        }
+        sender.sendMessage(comp.clickEvent(ClickEvent.runCommand("/claims perm toggle " + groupName + " explosion"))
+                .append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
     }
 
     private void removeFlight(Player player) {

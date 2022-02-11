@@ -25,11 +25,15 @@ public final class PermissionMatrix {
             PERSON_OWNER | PERSON_TRUSTED,
             PERSON_OWNER | PERSON_TRUSTED,
             PERSON_OWNER | PERSON_TRUSTED,
-            0);
+            0, false);
 
     @NotNull
-    public static final PermissionMatrix deserialize(@NotNull InputStream in) throws IOException {
-        return new PermissionMatrix(in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read());
+    public static final PermissionMatrix deserialize(@NotNull InputStream in, short version) throws IOException {
+        if (version == 0) {
+            return new PermissionMatrix(in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), false);
+        } else {
+            return new PermissionMatrix(in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read(), in.read() != 0);
+        }
     }
 
     private final byte attack;
@@ -40,9 +44,10 @@ public final class PermissionMatrix {
     private final byte interact;
     private final byte interactEntity;
     private final byte trample;
+    private final boolean explosions;
 
     public PermissionMatrix(byte attack, byte attackNamed, byte build, byte destroy, byte harvestCrops,
-            byte interact, byte interactEntity, byte trample) {
+            byte interact, byte interactEntity, byte trample, boolean explosions) {
         this.attack = attack;
         this.attackNamed = attackNamed;
         this.build = build;
@@ -51,12 +56,13 @@ public final class PermissionMatrix {
         this.interact = interact;
         this.interactEntity = interactEntity;
         this.trample = trample;
+        this.explosions = explosions;
     }
 
     public PermissionMatrix(int attack, int attackNamed, int build, int destroy, int harvestCrops,
-            int interact, int interactEntity, int trample) {
+            int interact, int interactEntity, int trample, boolean explosions) {
         this((byte) attack, (byte) attackNamed, (byte) build, (byte) destroy, (byte) harvestCrops,
-                (byte) interact, (byte) interactEntity, (byte) trample);
+                (byte) interact, (byte) interactEntity, (byte) trample, explosions);
     }
 
     /**
@@ -77,7 +83,7 @@ public final class PermissionMatrix {
         } else {
             attack &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -98,7 +104,7 @@ public final class PermissionMatrix {
         } else {
             attackNamed &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -119,7 +125,7 @@ public final class PermissionMatrix {
         } else {
             build &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -140,7 +146,7 @@ public final class PermissionMatrix {
         } else {
             destroy &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -161,7 +167,7 @@ public final class PermissionMatrix {
         } else {
             harvestCrops &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -182,7 +188,7 @@ public final class PermissionMatrix {
         } else {
             interact &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -203,7 +209,7 @@ public final class PermissionMatrix {
         } else {
             interactEntity &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
     }
 
     /**
@@ -224,7 +230,13 @@ public final class PermissionMatrix {
         } else {
             trample &= ~person;
         }
-        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample);
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, explosions);
+    }
+
+    @NotNull
+    @Contract(value = "_ -> new", pure = true)
+    public final PermissionMatrix alterExplosions(final boolean enable) {
+        return new PermissionMatrix(attack, attackNamed, build, destroy, harvestCrops, interact, interactEntity, trample, enable);
     }
 
     @Contract(pure = true)
@@ -308,7 +320,12 @@ public final class PermissionMatrix {
         return trample;
     }
 
-    public final void serialize(@NotNull OutputStream out) throws IOException {
+    @Contract(pure = true)
+    public final boolean getExplosionsEnabled() {
+        return explosions;
+    }
+
+    public final void serialize(@NotNull OutputStream out, short version) throws IOException {
         out.write(this.attack);
         out.write(this.attackNamed);
         out.write(this.build);
@@ -317,5 +334,8 @@ public final class PermissionMatrix {
         out.write(this.interact);
         out.write(this.interactEntity);
         out.write(this.trample);
+        if (version != 0) {
+            out.write(this.explosions ? 1 : 0); // Sometimes, I'd rather want to write pure bytecode (TODO write this in pure bytecode)
+        }
     }
 }

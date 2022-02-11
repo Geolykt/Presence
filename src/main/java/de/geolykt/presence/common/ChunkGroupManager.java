@@ -31,6 +31,7 @@ import de.geolykt.presence.common.util.WorldPosition;
 
 public class ChunkGroupManager {
 
+    protected static final short CURRENT_VERSION = 1;
     private final Map<WorldPosition, ChunkGroup> groupedChunks = new ConcurrentHashMap<>();
     private final Map<PlayerAttachedString, ChunkGroup> groupNames = new ConcurrentHashMap<>();
     private final Map<UUID, PermissionMatrix> playerDefaults = new ConcurrentHashMap<>();
@@ -143,6 +144,26 @@ public class ChunkGroupManager {
         PermissionMatrix perms = getPermissionMatrix(owner, group);
         int type = getRelationship(owner, player, group);
         return perms.canBuild(type);
+    }
+
+    /**
+     * Checks whether explosions are enabled in the given chunk or for the given owner player.
+     * If there is no chunk group at the specified location then the permission according to the
+     * owner defaults are returned. If owner is null true is returned.
+     * This method is fully safe to use in a concurrent environment, provided it isn't within the loading phase.
+     *
+     * @param owner The owner of the chunk. Used for example when there is no chunk group at the given position
+     * @param pos The position of the chunk
+     * @return Whether blocks can be broken due to explosions.
+     * @see PermissionMatrix#getExplosionsEnabled()
+     */
+    public boolean canExplode(@Nullable UUID owner, @NotNull WorldPosition pos) {
+        if (owner == null) {
+            return true;
+        }
+        ChunkGroup group = groupedChunks.get(pos);
+        PermissionMatrix perms = getPermissionMatrix(owner, group);
+        return perms.getExplosionsEnabled();
     }
 
     /**
@@ -315,7 +336,7 @@ public class ChunkGroupManager {
         return true;
     }
 
-    protected void load(@NotNull DataInputStream in) throws IOException {
+    protected void load(@NotNull DataInputStream in, short version) throws IOException {
         groupedChunks.clear();
         groupNames.clear();
         playerDefaults.clear();
@@ -325,7 +346,7 @@ public class ChunkGroupManager {
         while(readElementStartByte(in)) {
             UUID ownerId = new UUID(in.readLong(), in.readLong());
             String groupName = in.readUTF();
-            PermissionMatrix perms = PermissionMatrix.deserialize(in);
+            PermissionMatrix perms = PermissionMatrix.deserialize(in, version);
             if (groupName == null) {
                 throw new IOException(groupName);
             }
@@ -351,7 +372,7 @@ public class ChunkGroupManager {
 
         while (readElementStartByte(in)) {
             UUID player = new UUID(in.readLong(), in.readLong());
-            PermissionMatrix perms = PermissionMatrix.deserialize(in);
+            PermissionMatrix perms = PermissionMatrix.deserialize(in, version);
             playerDefaults.put(player, perms);
         }
 
@@ -369,12 +390,13 @@ public class ChunkGroupManager {
     }
 
     public void loadSafely(@NotNull InputStream in) throws IOException {
-        if (Shorts.fromBytes((byte) in.read(), (byte) in.read()) != 0) {
-            throw new IOException("Invalid version. Expected 0");
+        short version = Shorts.fromBytes((byte) in.read(), (byte) in.read());
+        if (version != 0 && version != 1) {
+            throw new IOException("Invalid version. Expected 0 or 1, got " + version);
         }
         long shouldBeChecksum = Longs.fromByteArray(in.readNBytes(8));
         CheckedInputStream cin = new CheckedInputStream(in, new Adler32());
-        load(new DataInputStream(cin));
+        load(new DataInputStream(cin), version);
         if (cin.getChecksum().getValue() != shouldBeChecksum) {
             throw new IOException("Expected checksum and actual checksum do not match.");
         }
@@ -400,13 +422,13 @@ public class ChunkGroupManager {
         return trustedPlayers.remove(trusted);
     }
 
-    protected void save(@NotNull DataOutputStream out) throws IOException {
+    protected void save(@NotNull DataOutputStream out, short version) throws IOException {
         for (ChunkGroup cgroup : groupNames.values()) {
             out.write(1);
             out.writeLong(cgroup.owner().getMostSignificantBits());
             out.writeLong(cgroup.owner().getLeastSignificantBits());
             out.writeUTF(cgroup.name());
-            cgroup.permissions().serialize(out);
+            cgroup.permissions().serialize(out, version);
             for (WorldPosition pos : cgroup.claimedChunks()) {
                 out.write(1);
                 out.writeLong(pos.world().getMostSignificantBits());
@@ -421,7 +443,7 @@ public class ChunkGroupManager {
             out.write(1);
             out.writeLong(e.getKey().getMostSignificantBits());
             out.writeLong(e.getKey().getLeastSignificantBits());
-            e.getValue().serialize(out);
+            e.getValue().serialize(out, version);
         }
         out.write(0);
 
@@ -442,8 +464,8 @@ public class ChunkGroupManager {
     public void saveSafely(@NotNull OutputStream out) throws IOException {
         ByteArrayOutputStream tout = new ByteArrayOutputStream();
         CheckedOutputStream cout = new CheckedOutputStream(tout, new Adler32());
-        save(new DataOutputStream(cout));
-        out.write(Shorts.toByteArray((short) 0));
+        save(new DataOutputStream(cout), CURRENT_VERSION);
+        out.write(Shorts.toByteArray(CURRENT_VERSION));
         out.write(Longs.toByteArray(cout.getChecksum().getValue()));
         out.write(tout.toByteArray());
         out.flush();

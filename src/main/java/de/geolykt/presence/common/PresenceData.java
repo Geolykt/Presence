@@ -90,6 +90,15 @@ public class PresenceData {
         return chunkGroups.canBuild(record.getPlayer(), player, pos);
     }
 
+    public boolean canExplode(@NotNull UUID world, int x, int y) {
+        WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
+        PlayerAttachedScore record = leaders.get(pos);
+        if (record == null) {
+            return true;
+        }
+        return chunkGroups.canExplode(record.getPlayer(), pos);
+    }
+
     public boolean canHarvest(@NotNull UUID player, @NotNull UUID world, int x, int y) {
         WorldPosition pos = new WorldPosition(world, hashPositions(x, y));
         PlayerAttachedScore record = leaders.get(pos);
