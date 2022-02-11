@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
+import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -334,11 +336,12 @@ public class ChunkGroupManager {
             Set<ChunkGroup> groups = playerGroups.get(ownerId);
             if (groups == null) {
                 groups = ConcurrentHashMap.newKeySet();
-                playerGroups.put(ownerId, groups);
+                if (!Objects.isNull(playerGroups.put(ownerId, groups))) {
+                    throw new ConcurrentModificationException("Error L340. Make sure no plugin is accessing the chunk group manager during the load phase.");
+                }
             }
             groups.add(cgroup);
 
-            playerGroups.put(ownerId, null);
             while(readElementStartByte(in)) {
                 WorldPosition pos = new WorldPosition(new UUID(in.readLong(), in.readLong()), in.readLong());
                 positions.add(pos);

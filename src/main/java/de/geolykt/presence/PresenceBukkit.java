@@ -51,11 +51,14 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 import de.geolykt.presence.common.ChunkGroup;
+import de.geolykt.presence.common.ChunkGroupManager;
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PermissionMatrix;
 import de.geolykt.presence.common.PresenceData;
+import de.geolykt.presence.common.util.ElementAlreadyExistsException;
 import de.geolykt.presence.common.util.PlayerAttachedScore;
+import de.geolykt.presence.common.util.WorldPosition;
 
 public class PresenceBukkit extends JavaPlugin {
 
@@ -253,24 +256,214 @@ public class PresenceBukkit extends JavaPlugin {
             player.setAllowFlight(true);
             return true;
         }
-        case "forceclaim": {
-            if (!sender.isOp()) {
-                return true;
-            }
-            Player p = (Player) sender;
-            UUID player = p.getUniqueId();
-            UUID world = p.getWorld().getUID();
-            int cx = p.getChunk().getX();
-            int cy = p.getChunk().getZ();
-            for (int i = 0; i < Integer.parseInt(args[0]); i++) {
-                DataSource.getData().tick(player, world, cx, cy);
+        case "chunkgroups":
+            if (sender instanceof Player player) {
+                manageChunkGroups(player, args);
+            } else {
+                sender.sendMessage(Component.text("You must be a player in order to do this action.", NamedTextColor.RED));
             }
             return true;
-        }
         default:
             break;
         }
         return false;
+    }
+
+    private void manageChunkGroups(Player player, @NotNull String[] args) {
+        ChunkGroupManager groupManager = DataSource.getData().getChunkGroupManager();
+        if (args.length == 0) {
+            Set<ChunkGroup> groups = groupManager.getOwnedGroups(player.getUniqueId());
+            if (groups == null || groups.isEmpty()) {
+                player.sendMessage(Component.text("You do not have any chunk groups.", NamedTextColor.RED)
+                        .append(Component.text(" Change this.", NamedTextColor.DARK_BLUE, TextDecoration.BOLD)
+                                .clickEvent(ClickEvent.suggestCommand("/chunkgroups create "))));
+                return;
+            }
+            player.sendMessage(Component.text("Your chunk groups: ", NamedTextColor.GREEN));
+            for (ChunkGroup group : groups) {
+                player.sendMessage(Component.text(group.getName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD)
+                        .clickEvent(ClickEvent.runCommand("/chunkgroups manage " + group.name()))
+                        .append(Component.text(" (", NamedTextColor.GRAY))
+                        .append(Component.text(group.claimedChunks().size(), NamedTextColor.GOLD))
+                        .append(Component.text(")", NamedTextColor.GRAY)));
+            }
+            return;
+        }
+
+        if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("manage")) {
+                args = new @NotNull String[] {args[1]};
+            } else if (args[0].equalsIgnoreCase("create") || args[0].equalsIgnoreCase("new")) {
+                if (args[1].equalsIgnoreCase("global") || args[1].equalsIgnoreCase("here")
+                        || args[1].equalsIgnoreCase("new") || args[1].equalsIgnoreCase("create")
+                        || args[1].equalsIgnoreCase("assign") || args[1].equalsIgnoreCase("manage")
+                        || args[1].equalsIgnoreCase("unassign") || args[1].equalsIgnoreCase("help")) {
+                    player.sendMessage(Component.text("The name of the chunk group may not be identical to a keyword.", NamedTextColor.DARK_RED));
+                    return;
+                }
+                ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[1]);
+                if (cgroup != null) {
+                    player.sendMessage(Component.text("You already own a chunk group with this name.", NamedTextColor.DARK_RED));
+                    return;
+                }
+                try {
+                    cgroup = DataSource.getData().getChunkGroupManager().createChunkGroup(player.getUniqueId(), args[1]);
+                } catch (ElementAlreadyExistsException e) {
+                    // Unlikely to happen, but we want to be atomically safe, so this is required nonetheless
+                    player.sendMessage(Component.text("Something went wrong. Try again", NamedTextColor.RED));
+                    e.printStackTrace();
+                    return;
+                }
+                player.sendMessage(Component.text("The chunk group was created. Assign the chunk you are standing on"
+                        + " to this group via /chunkgroups assign", NamedTextColor.GREEN));
+                return;
+            } else if (args[0].equalsIgnoreCase("assign")) {
+                ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[1]);
+                if (cgroup == null) {
+                    player.sendMessage(Component.text("You do not own a chunk with this name.", NamedTextColor.DARK_RED));
+                    return;
+                }
+                UUID world = player.getWorld().getUID();
+                int chunkX = player.getLocation().getBlockX() >> 4;
+                int chunkZ = player.getLocation().getBlockZ() >> 4;
+                PlayerAttachedScore score = DataSource.getData().getOwner(world, chunkX, chunkZ);
+                if (score == null || !score.getPlayer().equals(player.getUniqueId())) {
+                    player.sendMessage(Component.text("Only the owner of this chunk may add this chunk to a chunk group. You however are not the owner of the chunk.", NamedTextColor.DARK_RED));
+                    return;
+                }
+                WorldPosition pos = new WorldPosition(world, PresenceData.hashPositions(chunkX, chunkZ));
+                if (cgroup.claimedChunks().contains(pos)) {
+                    player.sendMessage(Component.text("This chunk is already assigned to this chunk group.", NamedTextColor.RED));
+                    return;
+                }
+                if (DataSource.getData().getChunkGroupManager().getGroupAt(pos) != null) {
+                    player.sendMessage(Component.text("This chunk is already assigned to a chunk group. Try unassigning it first", NamedTextColor.RED));
+                    return;
+                }
+                if (!DataSource.getData().getChunkGroupManager().addChunk(cgroup, pos)) {
+                    player.sendMessage(Component.text("Internal error, try again.", NamedTextColor.RED));
+                } else {
+                    player.sendMessage(Component.text("Action successfully performed.", NamedTextColor.GREEN));
+                }
+                return;
+            }
+        }
+
+        if (args.length == 1) {
+            if (args[0].equalsIgnoreCase("here")) {
+                Location loc = player.getLocation();
+                WorldPosition pos = new WorldPosition(loc.getWorld().getUID(),
+                        PresenceData.hashPositions(loc.getBlockX() >> 4, loc.getBlockZ() >> 4));
+                ChunkGroup cgroup = groupManager.getGroupAt(pos);
+                if (cgroup == null) {
+                    player.sendMessage(Component.text("You are not standing in any chunk group.", NamedTextColor.YELLOW));
+                    player.sendMessage(Component.text("Perhaps create one and assign this chunk to the group?", NamedTextColor.GREEN));
+                    return;
+                } else {
+                    String ownerName = Bukkit.getOfflinePlayer(cgroup.getOwner()).getName();
+                    if (ownerName == null) {
+                        ownerName = "null";
+                    }
+                    player.sendMessage(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)
+                            .append(Component.text(cgroup.getName(), NamedTextColor.YELLOW))
+                            .append(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)));
+                    player.sendMessage(Component.text("Group owner: ")
+                            .append(Component.text(ownerName, NamedTextColor.GOLD)));
+                    player.sendMessage(Component.text("Group size: ")
+                            .append(Component.text(cgroup.claimedChunks().size(), NamedTextColor.GOLD)));
+                    PermissionMatrix perms = cgroup.permissions();
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackBitfield()).append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackNamedBitfield()).append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getBuildBitfield()).append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getDestroyBitfield()).append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getHarvestCropsBitfield()).append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractBlockBitfield()).append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractEntityBitfield()).append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getTrampleBitfield()).append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+                }
+                return;
+            } else if (args[0].equalsIgnoreCase("assign")) {
+                player.sendMessage(Component.text("Assign: Assigns the chunk you are standing on to a chunk group.", NamedTextColor.AQUA));
+                player.sendMessage(Component.text("Invalid syntax. Syntax is: /claimgroups assign <group>.", NamedTextColor.RED));
+                return;
+            } else if (args[0].equalsIgnoreCase("unassign")) {
+                Location loc = player.getLocation();
+                WorldPosition pos = new WorldPosition(loc.getWorld().getUID(),
+                        PresenceData.hashPositions(loc.getBlockX() >> 4, loc.getBlockZ() >> 4));
+                ChunkGroup cgroup = groupManager.getGroupAt(pos);
+                if (cgroup == null) {
+                    player.sendMessage(Component.text("You are not standing in any chunk group.", NamedTextColor.YELLOW));
+                    return;
+                }
+                if (!cgroup.owner().equals(player.getUniqueId())) {
+                    player.sendMessage(Component.text("Cannot unassign: You are not the owner of this chunk group.", NamedTextColor.YELLOW));
+                    return;
+                }
+                if (groupManager.removeChunk(cgroup, pos)) {
+                    player.sendMessage(Component.text("Actions successfully performed.", NamedTextColor.GREEN));
+                } else {
+                    player.sendMessage(Component.text("Internal error. Try again.", NamedTextColor.RED));
+                }
+                return;
+            }
+            ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[0]);
+            if (cgroup == null) {
+                player.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                        .append(Component.text(args[0], NamedTextColor.DARK_RED)));
+                return;
+            } else {
+                player.sendMessage(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)
+                        .append(Component.text(cgroup.getName(), NamedTextColor.YELLOW))
+                        .append(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)));
+                player.sendMessage(Component.text("Group owner: ")
+                        .append(player.displayName().colorIfAbsent(NamedTextColor.GOLD)));
+                player.sendMessage(Component.text("Group size: ")
+                        .append(Component.text(cgroup.claimedChunks().size(), NamedTextColor.GOLD)));
+                PermissionMatrix perms = cgroup.permissions();
+                player.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + cgroup.name() + " attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + cgroup.name() + " attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + cgroup.name() + " build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + cgroup.name() + " destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + cgroup.name() + " harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + cgroup.name() + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + cgroup.name() + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + cgroup.name() + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+            }
+            return;
+        }
+    }
+
+    @NotNull
+    @Contract(value = "_ -> new", pure = true)
+    private Component texifyPermissionBitfieldReadonly(int permissions) {
+        boolean owner = (permissions & PermissionMatrix.PERSON_OWNER) != 0;
+        boolean trusted = (permissions & PermissionMatrix.PERSON_TRUSTED) != 0;
+        boolean visitor = (permissions & PermissionMatrix.PERSON_STRANGER) != 0;
+        Component ownerComp;
+        Component trustedComp;
+        Component visitorComp;
+        if (owner) {
+            ownerComp = Component.text('O', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for the owner.")));
+        } else {
+            ownerComp = Component.text('O', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for the owner.")));
+        }
+        if (trusted) {
+            trustedComp = Component.text('T', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for trusted people.")));
+        } else {
+            trustedComp = Component.text('T', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for trusted people.")));
+        }
+        if (visitor) {
+            visitorComp = Component.text('V', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current allowed for visitors.")));
+        } else {
+            visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for visitors.")));
+        }
+        return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
     }
 
     @NotNull
@@ -350,6 +543,7 @@ public class PresenceBukkit extends JavaPlugin {
             return;
         }
         PermissionMatrix perms = DataSource.getData().getChunkGroupManager().getPermissionMatrix(p.getUniqueId(), null);
+        String groupName = "global";
 
         if (args.length == 6) {
             if (args[1].equals("set")) {
@@ -386,19 +580,39 @@ public class PresenceBukkit extends JavaPlugin {
                        return;
                    }
                    DataSource.getData().getChunkGroupManager().setPlayerDefaultPermissions(p.getUniqueId(), perms);
+                } else {
+                    ChunkGroup group = DataSource.getData().getChunkGroupManager().getChunkGroup(p.getUniqueId(), args[2]);
+                    if (group == null) {
+                        sender.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                                .append(Component.text(args[2], NamedTextColor.DARK_RED)));
+                        return;
+                    }
+                    while (true) {
+                        perms = group.permissions();
+                        PermissionMatrix oldPerm = perms;
+                        perms = alter(perms, args[3], person, allow);
+                        if (perms == null) {
+                            sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                            return;
+                        }
+                        if (group.permissionRef().compareAndSet(oldPerm, perms)) {
+                            break;
+                        }
+                    }
+                    groupName = args[2];
                 }
             }
         }
         sender.sendMessage(Component.empty());
         sender.sendMessage(Component.empty());
-        sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set global attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set global attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set global build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set global destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set global harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set global interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set global interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set global trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + groupName + " attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + groupName + " attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + groupName + " build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + groupName + " destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + groupName + " harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + groupName + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + groupName + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + groupName + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
     }
 
     private void removeFlight(Player player) {
@@ -639,6 +853,36 @@ public class PresenceBukkit extends JavaPlugin {
                 sList.removeIf(s -> !s.startsWith(args[0]));
             }
             return sList;
+        } else if (command.getName().equals("chunkgroups")) {
+            if (args.length == 2 && args[0].equals("assign")) {
+                List<String> sList = new ArrayList<>();
+                if (sender instanceof Player p) {
+                    Set<ChunkGroup> groups = DataSource.getData().getChunkGroupManager().getOwnedGroups(p.getUniqueId());
+                    if (groups != null) {
+                        for (ChunkGroup group : groups) {
+                            if (group.name().startsWith(args[1])) {
+                                sList.add(group.name());
+                            }
+                        }
+                    }
+                }
+                return sList;
+            }
+            if (args.length == 1) {
+                List<String> sList = new ArrayList<>(Arrays.asList("create", "assign", "unassign"));
+                sList.removeIf(s -> !s.startsWith(args[0]));
+                if (sender instanceof Player p) {
+                    Set<ChunkGroup> groups = DataSource.getData().getChunkGroupManager().getOwnedGroups(p.getUniqueId());
+                    if (groups != null) {
+                        for (ChunkGroup group : groups) {
+                            if (group.name().startsWith(args[0])) {
+                                sList.add(group.name());
+                            }
+                        }
+                    }
+                }
+                return sList;
+            }
         }
         return null;
     }

@@ -15,7 +15,6 @@ commands:
   claimFly:
     aliases: [cfly]
     default: true
-  forceclaim:
-    description: OP-only command to claim stuff
-    usage: /forceclaim [amount]
-    default: op
+  chunkgroups:
+    aliases: [cgroup, chunkgroup, groups, claimgroup, claimgroups]
+    description: Manage chunk groups

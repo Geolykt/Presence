@@ -29,4 +29,12 @@ public record ChunkGroup(@NotNull String name, @NotNull UUID owner, @NotNull Ato
     public int hashCode() {
         return name.hashCode() ^ owner.hashCode();
     }
+
+    public @NotNull String getName() {
+        return name;
+    }
+
+    public @NotNull UUID getOwner() {
+        return owner;
+    }
 }

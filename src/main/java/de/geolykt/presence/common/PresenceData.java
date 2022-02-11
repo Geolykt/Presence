@@ -305,6 +305,21 @@ public class PresenceData {
                     if (!leaders.replace(worldPos, oldLeader, tickedRecord)) {
                         continue; // The old value changed in the meantime: let's have another poke at it
                     }
+                    ChunkGroup group = chunkGroups.getGroupAt(worldPos);
+                    if (group != null) {
+                        chunkGroups.removeChunk(group, worldPos);
+                    }
+                    do {
+                        PlayerAttachedScore oldSuccessor = successors.get(worldPos);
+                        if (oldSuccessor == null) { // There is no successor, so we can easily change it now
+                            oldSuccessor = successors.putIfAbsent(worldPos, oldLeader);
+                        }
+                        if (oldSuccessor != null && oldLeader != oldSuccessor
+                                && oldSuccessor.score().get() < oldLeader.score().get()
+                                && !successors.replace(worldPos, oldSuccessor, oldLeader)) {
+                            continue; // The old value changed in the meantime: let's have another poke at it
+                        }
+                    } while(false);
                 } else {
                     do {
                         PlayerAttachedScore oldSuccessor = successors.get(worldPos);
