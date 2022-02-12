@@ -1,0 +1,200 @@
+[
+	{
+		"language": "eng",
+		"translations": {
+			"SCOREBOARD_TITLE": "Presence claims: ",
+			"SCOREBOARD_USER_PRESENCE": "Your presence",
+			"SCOREBOARD_OWNER_PRESENCE": "Owner presence",
+			"SCOREBOARD_SUCCESSOR_PRESENCE": "Successor presence",
+
+			"TITLE_CLAIMS_HELP": "Options",
+			"INFO_CLAIMS_HELP": "prints this text.",
+			"INFO_CLAIMS_TOGGLESB": "toggles the scoreboard.",
+			"INFO_CLAIMS_MAP": "prints a map of the surroundings.",
+			"INFO_CLAIMS_TRUST": "allows a player to modify your property.",
+			"INFO_CLAIMS_UNTRUST": "reverses the trust command.",
+			"INFO_CLAIMS_PERM": "Manage the permissions of your claims.",
+
+			"TOGGLESB_RESET": "Reset the scoreboard.",
+			"TOGGLESB_ENABLE": "Enabled the scoreboard.",
+
+			"CMD_UNSPECIFIED_TARGET": "You have to specify the target player!",
+			"CMD_UNKNOWN_TARGET": "The selected player did not play on this server (yet)!",
+			"CMD_INTERNAL_CONCURRENCY_ERROR": "Internal error. Try again.",
+			"CMD_SUCCESS": "Action performed.",
+
+			"TRUST_SUCCESS": "You are now trusting %s.",
+			"UNTRUST_SUCCESS": "You are no longer trusting %s.",
+			"UNTRUST_NOT_TRUSTED": "You are not yet trusting that player!",
+
+			"CLAIMS_UNKNOWN_CMD": "Unknown subcommand.",
+
+			"PERM_CMD_SYNTAX_A": "Syntax is: /claims %s set global|<group> <action> <person> allow|deny",
+			"PERM_CMD_SYNTAX_B": "Or: /claims %s toggle global|<group> <action>",
+
+			"PERM_UNKNOWN_PERSON": "Unknown person: %s, should be either owner, trusted or visitor.",
+			"PERM_UNKNOWN_ACTION": "Unknown action: %s.",
+
+			"PERM_ATTACK": "Attack",
+			"PERM_ATTACK_NAMED": "Attack named entities",
+			"PERM_BUILD": "Build blocks",
+			"PERM_DESTORY": "Destroy blocks",
+			"PERM_HARVEST": "Harvest crops",
+			"PERM_INTERACT": "Interact with blocks",
+			"PERM_INTERACT_ENTITY": "Interact with entities",
+			"PERM_TRAMPLE": "Trample farmland",
+			"PERM_EXPLOSION": " Explosions",
+
+			"PERM_ENABLED": "ENABLED",
+			"PERM_DISABLED": "DISABLED",
+			"PERM_TOOLTIP_EXPLOSION_ENABLED": "Blocks can be damaged by explosions right now. Click the text you are hovering over right now to toggle this.",
+			"PERM_TOOLTIP_EXPLOSION_DISABLED": "Blocks cannot be damaged by explosions right now. Click the text you are hovering over right now to toggle this.",
+
+			"CHUNKGROUPS_NOT_A_GROUP": "Unknown chunk group: ",
+			"CHUNKGROUPS_NOT_IN_GROUP": "You are not standing in any chunk group.",
+			"CHUNKGROUPS_SUGGEST_CREATION": "Perhaps create one and assign this chunk to the group?",
+			"CHUNKGROUPS_ASSIGN_INFO": "Assign: Assigns the chunk you are standing on to a chunk group.",
+			"CHUNKGROUPS_ASSIGN_INVALID_SYNTAX": "Invalid syntax. Syntax is: /claimgroups assign <group>.",
+			"CHUNKGROUPS_NOT_THE_OWNER_UNASSIGN": "Cannot unassign: You are not the owner of this chunk group.",
+			"CHUNKGROUPS_NOT_THE_OWNER_ASSIGN": "Only the owner of this chunk may add this chunk to a chunk group. You however are not the owner of the chunk.",
+			"CHUNKGROUPS_ALREADY_ASSIGNED_ITSELF": "This chunk is already assigned to this chunk group.",
+			"CHUNKGROUPS_ALREADY_ASSIGNED_OTHER": "This chunk is already assigned to a chunk group. Try unassigning it first",
+			"CHUNKGROUPS_CREATE_SUCCESS": "The chunk group was created. Assign the chunk you are standing on to this group via /chunkgroups assign",
+			"CHUNKGROUPS_DUPLICATE_NAME": "You already own a chunk group with this name.",
+			"CHUNKGROUPS_KEYWORD_NAME": "The name of the chunk group may not be identical to a keyword.",
+			"CHUNKGROUPS_NO_GROUPS": "You do not have any chunk groups.",
+			"CHUNKGROUPS_CHANGE_NO_GROUPS": " Change this.",
+
+			"PERM_TOOLTIP_ENABLED_OWNER_SELF": "Current enabled for you.",
+			"PERM_TOOLTIP_DISABLED_OWNER_SELF": "Current disabled for you.",
+			"PERM_TOOLTIP_ENABLED_OWNER": "Current enabled for the owner.",
+			"PERM_TOOLTIP_DISABLED_OWNER": "Current disabled for the owner.",
+			"PERM_TOOLTIP_ENABLED_TRUSTED": "Current enabled for trusted people.",
+			"PERM_TOOLTIP_DISABLED_TRUSTED": "Current disabled for trusted people.",
+			"PERM_TOOLTIP_ENABLED_VISITOR": "Current allowed for visitors.",
+			"PERM_TOOLTIP_DISABLED_VISITOR": "Current disabled for visitors.",
+
+			"CHUNKGROUPS_LIST_HEADER": "Your chunk groups: ",
+			"CHUNKGROUPS_LIST_GROUP_OWNER": "Group owner: ",
+			"CHUNKGROUPS_LIST_GROUP_SIZE": "Group size: ",
+
+			"CLAIMFLY_NOT_ENABLED": "Flight in claims is not enabled.",
+			"CLAIMFLY_NOT_IN_CLAIM": "You are not in your claim!",
+			"CLAIMFLY_ENABLE_FLIGHT": "You are now able to fly in your claim!",
+			"CLAIMFLY_DISABLE_FLIGHT": "You are no longer flying!",
+
+			"CLAIMMAP_RELATION_OWNER": "Owned",
+			"CLAIMMAP_RELATION_TRUSTED": "Trusted",
+			"CLAIMMAP_RELATION_NEUTRAL": "Unclaimed",
+			"CLAIMMAP_RELATION_OTHER": "Other",
+			"CLAIMMAP_RELATION_THIS_CHUNK": "This chunk",
+			"CLAIMMAP_OWNER": "Owner: ",
+			"CLAIMMAP_NO_OWNER": "None",
+
+			"MOVEMENT_TO_WILDERNESS": "You are now in the wild.",
+			"MOVEMENT_TO_OWN_CLAIM": "You are now entering your claim.",
+			"MOVEMENT_TO_FOREIGN_CLAIM": "You are now entering the claim of %s.",
+
+			"ACTION_NOT_PERMITTED": "You cannot perform this action as the owner of this claim does not allow doing this action in this chunk."
+		}
+	},
+	{
+		"language": "deu",
+		"translations": {
+			"SCOREBOARD_TITLE": "Präsenz: ",
+			"SCOREBOARD_USER_PRESENCE": "Sie",
+			"SCOREBOARD_OWNER_PRESENCE": "Besitzer",
+			"SCOREBOARD_SUCCESSOR_PRESENCE": "Nachfolger",
+
+			"TITLE_CLAIMS_HELP": "Möglichkeiten",
+			"INFO_CLAIMS_HELP": "Gibt diesen Text aus.",
+			"INFO_CLAIMS_TOGGLESB": "Schaltet den Scoreboard aus/ein.",
+			"INFO_CLAIMS_MAP": "Gibt eine Karte der Umgebung aus",
+			"INFO_CLAIMS_TRUST": "Gibt einen Spieler erhöhte Berechtigungen.",
+			"INFO_CLAIMS_UNTRUST": "Kehrt den \"trust\"-Befehl um.",
+			"INFO_CLAIMS_PERM": "Feinere Kontrolle der Berechtigungen.",
+
+			"TOGGLESB_RESET": "Scoreboard deaktiviert.",
+			"TOGGLESB_ENABLE": "Scoreboard aktiviert.",
+
+			"CMD_UNSPECIFIED_TARGET": "Ein Spieler muss gegeben sein!",
+			"CMD_UNKNOWN_TARGET": "Der gewählte Spieler hat noch nie auf diesen Server gespielt!",
+			"CMD_INTERNAL_CONCURRENCY_ERROR": "Interner Fehler. Versuchen Sie es erneut.",
+			"CMD_SUCCESS": "Befehl durchgeführt.",
+
+			"TRUST_SUCCESS": "%s hat nun erweiterte Berechtigungen.",
+			"UNTRUST_SUCCESS": "%s hat nun nicht mehr erweiterte Berechtigungen.",
+			"UNTRUST_NOT_TRUSTED": "Dieser Spieler hat bereits keine besonderen Berechtigungen.",
+
+			"CLAIMS_UNKNOWN_CMD": "Unbekannter Unterbefehl.",
+
+			"PERM_CMD_SYNTAX_A": "Syntax ist: /claims %s set global|<Gruppe> <Sache> <Person> allow|deny",
+			"PERM_CMD_SYNTAX_B": "Oder: /claims %s toggle global|<Group> <Sache>",
+
+			"PERM_UNKNOWN_PERSON": "Unbekannte Personengruppe: %s, sollte aber entweder owner, trusted oder visitor sein.",
+			"PERM_UNKNOWN_ACTION": "Unbekannte Sache: %s.",
+
+			"PERM_ATTACK": "Angriff",
+			"PERM_ATTACK_NAMED": "Angriff benannter Mobs",
+			"PERM_BUILD": "Blöcke setzten",
+			"PERM_DESTORY": "Blöcke zerstören",
+			"PERM_HARVEST": "Ernten",
+			"PERM_INTERACT": "Interaktion mit Blöcken",
+			"PERM_INTERACT_ENTITY": "Interaktion mit Mobs",
+			"PERM_TRAMPLE": "Auf Bauernland herumspringen",
+			"PERM_EXPLOSION": " Explosionen",
+
+			"PERM_ENABLED": "Erlaubt",
+			"PERM_DISABLED": "Unerlaubt",
+			"PERM_TOOLTIP_EXPLOSION_ENABLED": "Blöcke können derzeit von Explosionen beschädigt werden.",
+			"PERM_TOOLTIP_EXPLOSION_DISABLED": "Blöcke können derzeit nicht von Explosionen beschädigt werden.",
+
+			"CHUNKGROUPS_NOT_A_GROUP": "Unbekannte Chunk-Gruppe: ",
+			"CHUNKGROUPS_NOT_IN_GROUP": "Sie stehen nicht auf einer Chunk-Gruppe.",
+			"CHUNKGROUPS_SUGGEST_CREATION": "Wohlmöglich könnte man eine erstellen und diesen Chunk zu der Gruppe hinzufügen?",
+			"CHUNKGROUPS_ASSIGN_INFO": "Assign: Weist ein Chunk zu einer Chunk-Gruppe hin.",
+			"CHUNKGROUPS_ASSIGN_INVALID_SYNTAX": "Ungültige syntax. Syntax ist: /claimgroups assign <Gruppe>.",
+			"CHUNKGROUPS_NOT_THE_OWNER_UNASSIGN": "Kann nicht entfernen: Sie besitzen diese Chunk-Gruppe nicht.",
+			"CHUNKGROUPS_NOT_THE_OWNER_ASSIGN": "Nur der Besitzer dieses Chunks darf diesen Chunk zu einer Gruppe hinzufügen. Sie kontrollieren diesen Chunk aber nicht.",
+			"CHUNKGROUPS_ALREADY_ASSIGNED_ITSELF": "Dieser Chunk ist bereits in dieser Chunk-Gruppe.",
+			"CHUNKGROUPS_ALREADY_ASSIGNED_OTHER": "Dieser Chunk ist bereits in einer Chunk-Gruppe. Es muss erst von der Chunk-Gruppe entfernt werden.",
+			"CHUNKGROUPS_CREATE_SUCCESS": "Die Chunk-Gruppe wurde erstellt. Chunks können zu dieser Gruppe mithilfe von /chunkgroup assign hinzugefügt werden.",
+			"CHUNKGROUPS_DUPLICATE_NAME": "Sie haben bereits eine Gruppe unter diesen Namen.",
+			"CHUNKGROUPS_KEYWORD_NAME": "Eine Gruppe kann nicht diesen Namen haben.",
+			"CHUNKGROUPS_NO_GROUPS": "Sie haben keine Chunk-Gruppen.",
+			"CHUNKGROUPS_CHANGE_NO_GROUPS": " Ändere dies.",
+
+			"PERM_TOOLTIP_ENABLED_OWNER_SELF": "Derzeit für Sie erlaubt.",
+			"PERM_TOOLTIP_DISABLED_OWNER_SELF": "Derzeit für Sie unerlaubt.",
+			"PERM_TOOLTIP_ENABLED_OWNER": "Derzeit für den Besitzer erlaubt.",
+			"PERM_TOOLTIP_DISABLED_OWNER": "Derzeit für den Besitzer unerlaubt.",
+			"PERM_TOOLTIP_ENABLED_TRUSTED": "Derzeit für Spieler mit erhöhten Berechtigungen erlaubt.",
+			"PERM_TOOLTIP_DISABLED_TRUSTED": "Derzeit für Spieler mit erhöhten Berechtigungen unerlaubt.",
+			"PERM_TOOLTIP_ENABLED_VISITOR": "Derzeit für normale Spieler erlaubt.",
+			"PERM_TOOLTIP_DISABLED_VISITOR": "Derzeit für normale Spieler unerlaubt.",
+
+			"CHUNKGROUPS_LIST_HEADER": "Ihre Chunk-Gruppen: ",
+			"CHUNKGROUPS_LIST_GROUP_OWNER": "Besitzer: ",
+			"CHUNKGROUPS_LIST_GROUP_SIZE": "Größe: ",
+
+			"CLAIMFLY_NOT_ENABLED": "Das Fliegen in Ansprüchen ist nicht erlaubt.",
+			"CLAIMFLY_NOT_IN_CLAIM": "Sie sind nicht innerhalb ihres claims!",
+			"CLAIMFLY_ENABLE_FLIGHT": "Sie können nun nicht mehr fliegen!",
+			"CLAIMFLY_DISABLE_FLIGHT": "Sie können nun fliegen!",
+
+			"CLAIMMAP_RELATION_OWNER": "Kontrolliert",
+			"CLAIMMAP_RELATION_TRUSTED": "Sie haben erhöhte Berechtigungen",
+			"CLAIMMAP_RELATION_NEUTRAL": "Neutral",
+			"CLAIMMAP_RELATION_OTHER": "Divers",
+			"CLAIMMAP_RELATION_THIS_CHUNK": "Dieses Chunk",
+			"CLAIMMAP_OWNER": "Besitzer: ",
+			"CLAIMMAP_NO_OWNER": "Niemand",
+
+			"MOVEMENT_TO_WILDERNESS": "Sie sind nun in der Wildnis.",
+			"MOVEMENT_TO_OWN_CLAIM": "Sie treten nun in ihrem Claim ein.",
+			"MOVEMENT_TO_FOREIGN_CLAIM": "Sie betreten nun das Anliegen von %s ein.",
+
+			"ACTION_NOT_PERMITTED": "Der Besitzer dieses Chunks erlaubt nicht, dies in diesem Chunk zu tun."
+		}
+	}
+]

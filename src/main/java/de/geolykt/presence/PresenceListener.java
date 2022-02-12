@@ -44,6 +44,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import de.geolykt.presence.common.Configuration;
 import de.geolykt.presence.common.DataSource;
 import de.geolykt.presence.common.PresenceData;
+import de.geolykt.presence.i18n.I18NKey;
 
 public class PresenceListener implements Listener {
     private final PresenceData data = DataSource.getData();
@@ -64,7 +65,7 @@ public class PresenceListener implements Listener {
         Long lastComplain = lastComplainTime.get(player.getUniqueId());
         if (lastComplain == null || time > (lastComplain + 10_000)) {
             lastComplainTime.put(player.getUniqueId(), time);
-            player.sendMessage(Component.text("You cannot perform this action as the owner of this claim does not allow doing this action in this chunk.", NamedTextColor.RED));
+            player.sendMessage(Component.text(this.pl.getI18N().get(I18NKey.ACTION_NOT_PERMITTED, player.locale()), NamedTextColor.RED));
         }
     }
 

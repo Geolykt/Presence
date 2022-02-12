@@ -1,5 +1,7 @@
 package de.geolykt.presence;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,6 +61,8 @@ import de.geolykt.presence.common.PresenceData;
 import de.geolykt.presence.common.util.ElementAlreadyExistsException;
 import de.geolykt.presence.common.util.PlayerAttachedScore;
 import de.geolykt.presence.common.util.WorldPosition;
+import de.geolykt.presence.i18n.I18NKey;
+import de.geolykt.presence.i18n.LocalisationContainer;
 
 public class PresenceBukkit extends JavaPlugin {
 
@@ -79,6 +83,8 @@ public class PresenceBukkit extends JavaPlugin {
     private static final JoinConfiguration SPACE_WITH_SPACE_SUFFIX = JoinConfiguration.builder()
             .suffix(Component.space()).separator(Component.space()).build();
 
+    @NotNull
+    private final LocalisationContainer i18n = new LocalisationContainer();
     private boolean successfullLoad = false;
 
     private static final void sendActionbarMessage(@NotNull Player p, @NotNull String message, TextColor color) {
@@ -95,12 +101,13 @@ public class PresenceBukkit extends JavaPlugin {
         UUID playerUID = player.getUniqueId();
         PlayerAttachedScore leader = presenceData.getOwner(world, chunkX, chunkY);
         PlayerAttachedScore successor = presenceData.getSuccessor(world, chunkX, chunkY);
-        Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", Component.text("Presence claims: ", NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
+        Locale locale = player.locale();
+        Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", Component.text(i18n.get(I18NKey.SCOREBOARD_TITLE, locale), NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.setRenderType(RenderType.INTEGER);
-        Score claimownerPresence = objective.getScore("Owner presence");
-        Score ownPresence = objective.getScore("Your presence");
-        Score successorPresence = objective.getScore("Successor presence");
+        Score claimownerPresence = objective.getScore(i18n.get(I18NKey.SCOREBOARD_OWNER_PRESENCE, locale));
+        Score ownPresence = objective.getScore(i18n.get(I18NKey.SCOREBOARD_USER_PRESENCE, locale));
+        Score successorPresence = objective.getScore(i18n.get(I18NKey.SCOREBOARD_SUCCESSOR_PRESENCE, locale));
         SCOREBOARD_CLAIM_OWNER.put(playerUID, claimownerPresence);
         SCOREBOARD_CLAIM_SELF.put(playerUID, ownPresence);
         SCOREBOARD_CLAIM_SUCCESSOR.put(playerUID, successorPresence);
@@ -125,6 +132,15 @@ public class PresenceBukkit extends JavaPlugin {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        Locale senderLocale;
+        if (sender instanceof Player p) {
+            senderLocale = p.locale();
+        } else {
+            senderLocale = Locale.ENGLISH;
+            if (senderLocale == null) {
+                throw new InternalError("Someone messed with the reflection API again");
+            }
+        }
         switch (command.getName().toLowerCase(Locale.ROOT)) {
         case "claims":
             if (args.length == 0) {
@@ -132,13 +148,13 @@ public class PresenceBukkit extends JavaPlugin {
             }
             switch (args[0].toLowerCase(Locale.ROOT)) {
             case "help":
-                sender.sendMessage(ChatColor.YELLOW + "Options:");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " help" + ChatColor.RED + " : " + ChatColor.WHITE + "prints this text.");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " togglesb" + ChatColor.RED + " : " + ChatColor.WHITE + "toggles the scoreboard.");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " map" + ChatColor.RED + " : " + ChatColor.WHITE + "prints a map of the surroundings.");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " trust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + "allows a player to modify your property.");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " untrust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + "reverses the trust command.");
-                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " perm" + ChatColor.RED + " : " + ChatColor.WHITE + "Manage the permissions of your claims.");
+                sender.sendMessage(ChatColor.YELLOW + i18n.get(I18NKey.TITLE_CLAIMS_HELP, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " help" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_HELP, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " togglesb" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_TOGGLESB, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " map" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_MAP, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " trust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_TRUST, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " untrust <player>" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_UNTRUST, senderLocale));
+                sender.sendMessage(ChatColor.GREEN + "/claims" + ChatColor.BLUE + " perm" + ChatColor.RED + " : " + ChatColor.WHITE + i18n.get(I18NKey.INFO_CLAIMS_PERM, senderLocale));
                 return true;
             case "togglesb":
                 if (sender instanceof Player) {
@@ -147,14 +163,14 @@ public class PresenceBukkit extends JavaPlugin {
                     ScoreboardManager mgr = Bukkit.getScoreboardManager();
                     if (SCOREBOARD_SUBSCRIBERS.containsKey(id)) {
                         SCOREBOARD_SUBSCRIBERS.remove(id);
-                        sender.sendMessage(ChatColor.YELLOW + " Reset the scoreboard.");
+                        sender.sendMessage(Component.text(i18n.get(I18NKey.TOGGLESB_RESET, senderLocale), NamedTextColor.YELLOW));
                         plyr.setScoreboard(mgr.getMainScoreboard());
                     } else {
                         Scoreboard sb = mgr.getNewScoreboard();
                         SCOREBOARD_SUBSCRIBERS.put(id, sb);
                         initSb(plyr, sb);
                         plyr.setScoreboard(sb);
-                        sender.sendMessage(ChatColor.DARK_GREEN + " Enabled the scoreboard.");
+                        sender.sendMessage(Component.text(i18n.get(I18NKey.TOGGLESB_ENABLE, senderLocale), NamedTextColor.DARK_GREEN));
                     }
                 }
                 return true;
@@ -163,12 +179,12 @@ public class PresenceBukkit extends JavaPlugin {
                 return true;
             case "trust": {
                 if (args.length == 1) {
-                    sender.sendMessage(Component.text("You have to specify the target player!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.CMD_UNSPECIFIED_TARGET, senderLocale), NamedTextColor.RED));
                     return true;
                 }
                 OfflinePlayer player = Bukkit.getOfflinePlayerIfCached(args[1]);
                 if (player == null || (!player.hasPlayedBefore() && !player.isOnline())) {
-                    sender.sendMessage(Component.text("The selected player did not play on this server (yet)!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.CMD_UNKNOWN_TARGET, senderLocale), NamedTextColor.RED));
                     return true;
                 }
                 if (!(sender instanceof Player)) {
@@ -176,17 +192,17 @@ public class PresenceBukkit extends JavaPlugin {
                     return true;
                 }
                 DataSource.getData().getChunkGroupManager().addTrustedPlayer(((Player)sender).getUniqueId(), player.getUniqueId());
-                sender.sendMessage(Component.text("You are now trusting " + player.getName() + ".", NamedTextColor.GREEN));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.TRUST_SUCCESS, senderLocale, player.getName()), NamedTextColor.GREEN));
                 return true;
             }
             case "untrust": {
                 if (args.length == 1) {
-                    sender.sendMessage(Component.text("You have to specify the target player!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.CMD_UNSPECIFIED_TARGET, senderLocale), NamedTextColor.RED));
                     return true;
                 }
                 OfflinePlayer player = Bukkit.getOfflinePlayerIfCached(args[1]);
                 if (player == null || !player.hasPlayedBefore() && !player.isOnline()) {
-                    sender.sendMessage(Component.text("The selected player did not play on this server (or does not exist)!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.CMD_UNKNOWN_TARGET, senderLocale), NamedTextColor.RED));
                     return true;
                 }
                 if (!(sender instanceof Player)) {
@@ -196,9 +212,9 @@ public class PresenceBukkit extends JavaPlugin {
                 UUID truster = ((Player)sender).getUniqueId();
                 boolean changed = DataSource.getData().getChunkGroupManager().removeTrustedPlayer(truster, player.getUniqueId());
                 if (changed) {
-                    sender.sendMessage(Component.text("You are no longer trusting " + player.getName() + ".", NamedTextColor.GREEN));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.UNTRUST_SUCCESS, senderLocale, player.getName()), NamedTextColor.GREEN));
                 } else {
-                    sender.sendMessage(Component.text("You are not yet trusting that player!", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.UNTRUST_NOT_TRUSTED, senderLocale), NamedTextColor.RED));
                 }
                 return true;
             }
@@ -209,13 +225,13 @@ public class PresenceBukkit extends JavaPlugin {
                 processPermissions(sender, args);
                 return true;
             default:
-                sender.sendMessage(Component.text("Unknown subcommand.", NamedTextColor.RED));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CLAIMS_UNKNOWN_CMD, senderLocale), NamedTextColor.RED));
                 return true;
             }
             // Break irrelevant as all other branches return
         case "claimfly": {
             if (!DataSource.getConfiguration().allowsFlight()) {
-                sender.sendMessage(Component.text("Flight in claims is not enabled.", NamedTextColor.RED));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CLAIMFLY_NOT_ENABLED, senderLocale), NamedTextColor.RED));
                 return true;
             }
             if (!(sender instanceof Player)) {
@@ -230,15 +246,15 @@ public class PresenceBukkit extends JavaPlugin {
             PlayerAttachedScore owner = DataSource.getData().getOwner(world, chunkX, chunkY);
             UUID ownerUID = owner == null ? null : owner.getPlayer();
             if (ownerUID == null || !(ownerUID.equals(player.getUniqueId()) || DataSource.getData().getChunkGroupManager().isTrusted(ownerUID, player.getUniqueId()))) {
-                sender.sendMessage(Component.text("You are not in your claim!", NamedTextColor.RED));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CLAIMFLY_NOT_IN_CLAIM, senderLocale), NamedTextColor.RED));
                 return true;
             }
             if (TEMPORARY_FLIGHT.remove(player.getUniqueId())) {
                 removeFlight(player);
-                sender.sendMessage(Component.text("You are no longer flying!", NamedTextColor.GREEN));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CLAIMFLY_DISABLE_FLIGHT, senderLocale), NamedTextColor.GREEN));
                 return true;
             }
-            Component flyingConfirm = Component.text("You are now able to fly in your claim!", NamedTextColor.GREEN);
+            Component flyingConfirm = Component.text(i18n.get(I18NKey.CLAIMFLY_ENABLE_FLIGHT, senderLocale), NamedTextColor.GREEN);
             if (args.length == 2 && args[1].equalsIgnoreCase("temporary")) {
                 SESSION_FLIGHT.remove(player.getUniqueId());
                 TEMPORARY_FLIGHT.add(player.getUniqueId());
@@ -248,7 +264,7 @@ public class PresenceBukkit extends JavaPlugin {
             }
             if (SESSION_FLIGHT.remove(player.getUniqueId())) {
                 removeFlight(player);
-                sender.sendMessage(Component.text("You are no longer flying!", NamedTextColor.GREEN));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CLAIMFLY_DISABLE_FLIGHT, senderLocale), NamedTextColor.GREEN));
                 return true;
             }
             sender.sendMessage(flyingConfirm);
@@ -270,16 +286,17 @@ public class PresenceBukkit extends JavaPlugin {
     }
 
     private void manageChunkGroups(Player player, @NotNull String[] args) {
+        Locale senderLocale = player.locale();
         ChunkGroupManager groupManager = DataSource.getData().getChunkGroupManager();
         if (args.length == 0) {
             Set<ChunkGroup> groups = groupManager.getOwnedGroups(player.getUniqueId());
             if (groups == null || groups.isEmpty()) {
-                player.sendMessage(Component.text("You do not have any chunk groups.", NamedTextColor.RED)
-                        .append(Component.text(" Change this.", NamedTextColor.DARK_BLUE, TextDecoration.BOLD)
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NO_GROUPS, senderLocale), NamedTextColor.RED)
+                        .append(Component.text(i18n.get(I18NKey.CHUNKGROUPS_SUGGEST_CREATION, senderLocale), NamedTextColor.DARK_BLUE, TextDecoration.BOLD)
                                 .clickEvent(ClickEvent.suggestCommand("/chunkgroups create "))));
                 return;
             }
-            player.sendMessage(Component.text("Your chunk groups: ", NamedTextColor.GREEN));
+            player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_LIST_HEADER, senderLocale), NamedTextColor.GREEN));
             for (ChunkGroup group : groups) {
                 player.sendMessage(Component.text(group.getName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD)
                         .clickEvent(ClickEvent.runCommand("/chunkgroups manage " + group.name()))
@@ -298,29 +315,29 @@ public class PresenceBukkit extends JavaPlugin {
                         || args[1].equalsIgnoreCase("new") || args[1].equalsIgnoreCase("create")
                         || args[1].equalsIgnoreCase("assign") || args[1].equalsIgnoreCase("manage")
                         || args[1].equalsIgnoreCase("unassign") || args[1].equalsIgnoreCase("help")) {
-                    player.sendMessage(Component.text("The name of the chunk group may not be identical to a keyword.", NamedTextColor.DARK_RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_KEYWORD_NAME, senderLocale), NamedTextColor.DARK_RED));
                     return;
                 }
                 ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[1]);
                 if (cgroup != null) {
-                    player.sendMessage(Component.text("You already own a chunk group with this name.", NamedTextColor.DARK_RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_DUPLICATE_NAME, senderLocale), NamedTextColor.DARK_RED));
                     return;
                 }
                 try {
                     cgroup = DataSource.getData().getChunkGroupManager().createChunkGroup(player.getUniqueId(), args[1]);
                 } catch (ElementAlreadyExistsException e) {
                     // Unlikely to happen, but we want to be atomically safe, so this is required nonetheless
-                    player.sendMessage(Component.text("Something went wrong. Try again", NamedTextColor.RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CMD_INTERNAL_CONCURRENCY_ERROR, senderLocale), NamedTextColor.RED));
                     e.printStackTrace();
                     return;
                 }
-                player.sendMessage(Component.text("The chunk group was created. Assign the chunk you are standing on"
-                        + " to this group via /chunkgroups assign", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_CREATE_SUCCESS, senderLocale), NamedTextColor.GREEN));
                 return;
             } else if (args[0].equalsIgnoreCase("assign")) {
                 ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[1]);
                 if (cgroup == null) {
-                    player.sendMessage(Component.text("You do not own a chunk with this name.", NamedTextColor.DARK_RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_A_GROUP, senderLocale), NamedTextColor.RED)
+                            .append(Component.text(args[1], NamedTextColor.DARK_RED)));
                     return;
                 }
                 UUID world = player.getWorld().getUID();
@@ -328,22 +345,22 @@ public class PresenceBukkit extends JavaPlugin {
                 int chunkZ = player.getLocation().getBlockZ() >> 4;
                 PlayerAttachedScore score = DataSource.getData().getOwner(world, chunkX, chunkZ);
                 if (score == null || !score.getPlayer().equals(player.getUniqueId())) {
-                    player.sendMessage(Component.text("Only the owner of this chunk may add this chunk to a chunk group. You however are not the owner of the chunk.", NamedTextColor.DARK_RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_THE_OWNER_ASSIGN, senderLocale), NamedTextColor.DARK_RED));
                     return;
                 }
                 WorldPosition pos = new WorldPosition(world, PresenceData.hashPositions(chunkX, chunkZ));
                 if (cgroup.claimedChunks().contains(pos)) {
-                    player.sendMessage(Component.text("This chunk is already assigned to this chunk group.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_ALREADY_ASSIGNED_ITSELF, senderLocale), NamedTextColor.RED));
                     return;
                 }
                 if (DataSource.getData().getChunkGroupManager().getGroupAt(pos) != null) {
-                    player.sendMessage(Component.text("This chunk is already assigned to a chunk group. Try unassigning it first", NamedTextColor.RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_ALREADY_ASSIGNED_OTHER, senderLocale), NamedTextColor.RED));
                     return;
                 }
                 if (!DataSource.getData().getChunkGroupManager().addChunk(cgroup, pos)) {
-                    player.sendMessage(Component.text("Internal error, try again.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CMD_INTERNAL_CONCURRENCY_ERROR, senderLocale), NamedTextColor.RED));
                 } else {
-                    player.sendMessage(Component.text("Action successfully performed.", NamedTextColor.GREEN));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CMD_SUCCESS, senderLocale), NamedTextColor.GREEN));
                 }
                 return;
             }
@@ -356,8 +373,8 @@ public class PresenceBukkit extends JavaPlugin {
                         PresenceData.hashPositions(loc.getBlockX() >> 4, loc.getBlockZ() >> 4));
                 ChunkGroup cgroup = groupManager.getGroupAt(pos);
                 if (cgroup == null) {
-                    player.sendMessage(Component.text("You are not standing in any chunk group.", NamedTextColor.YELLOW));
-                    player.sendMessage(Component.text("Perhaps create one and assign this chunk to the group?", NamedTextColor.GREEN));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_IN_GROUP, senderLocale), NamedTextColor.YELLOW));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_SUGGEST_CREATION, senderLocale), NamedTextColor.GREEN));
                     return;
                 } else {
                     String ownerName = Bukkit.getOfflinePlayer(cgroup.getOwner()).getName();
@@ -367,34 +384,34 @@ public class PresenceBukkit extends JavaPlugin {
                     player.sendMessage(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)
                             .append(Component.text(cgroup.getName(), NamedTextColor.YELLOW))
                             .append(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)));
-                    player.sendMessage(Component.text("Group owner: ")
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_LIST_GROUP_OWNER, senderLocale))
                             .append(Component.text(ownerName, NamedTextColor.GOLD)));
-                    player.sendMessage(Component.text("Group size: ")
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_LIST_GROUP_SIZE, senderLocale))
                             .append(Component.text(cgroup.claimedChunks().size(), NamedTextColor.GOLD)));
                     PermissionMatrix perms = cgroup.permissions();
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackBitfield()).append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackNamedBitfield()).append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getBuildBitfield()).append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getDestroyBitfield()).append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getHarvestCropsBitfield()).append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractBlockBitfield()).append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractEntityBitfield()).append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
-                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getTrampleBitfield()).append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getAttackNamedBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK_NAMED, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getBuildBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_BUILD, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getDestroyBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_DESTORY, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getHarvestCropsBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_HARVEST, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractBlockBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getInteractEntityBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT_ENTITY, senderLocale), NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(texifyPermissionBitfieldReadonly(perms.getTrampleBitfield(), senderLocale).append(Component.text(i18n.get(I18NKey.PERM_TRAMPLE, senderLocale), NamedTextColor.DARK_GRAY)));
 
                     Component comp;
                     if (perms.getExplosionsEnabled()) {
-                        comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
-                                .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now.")));
+                        comp = Component.text(i18n.get(I18NKey.PERM_ENABLED, senderLocale), NamedTextColor.GRAY, TextDecoration.BOLD)
+                                .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_ENABLED, senderLocale))));
                     } else {
-                        comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
-                                .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now.")));
+                        comp = Component.text(i18n.get(I18NKey.PERM_DISABLED, senderLocale), NamedTextColor.RED, TextDecoration.BOLD)
+                                .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_DISABLED, senderLocale))));
                     }
-                    player.sendMessage(comp.append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
+                    player.sendMessage(comp.append(Component.text(i18n.get(I18NKey.PERM_EXPLOSION, senderLocale), NamedTextColor.DARK_GRAY)));
                 }
                 return;
             } else if (args[0].equalsIgnoreCase("assign")) {
-                player.sendMessage(Component.text("Assign: Assigns the chunk you are standing on to a chunk group.", NamedTextColor.AQUA));
-                player.sendMessage(Component.text("Invalid syntax. Syntax is: /claimgroups assign <group>.", NamedTextColor.RED));
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_ASSIGN_INFO, senderLocale), NamedTextColor.AQUA));
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_ASSIGN_INVALID_SYNTAX, senderLocale), NamedTextColor.RED));
                 return;
             } else if (args[0].equalsIgnoreCase("unassign")) {
                 Location loc = player.getLocation();
@@ -402,60 +419,60 @@ public class PresenceBukkit extends JavaPlugin {
                         PresenceData.hashPositions(loc.getBlockX() >> 4, loc.getBlockZ() >> 4));
                 ChunkGroup cgroup = groupManager.getGroupAt(pos);
                 if (cgroup == null) {
-                    player.sendMessage(Component.text("You are not standing in any chunk group.", NamedTextColor.YELLOW));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_IN_GROUP, senderLocale), NamedTextColor.YELLOW));
                     return;
                 }
                 if (!cgroup.owner().equals(player.getUniqueId())) {
-                    player.sendMessage(Component.text("Cannot unassign: You are not the owner of this chunk group.", NamedTextColor.YELLOW));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_THE_OWNER_UNASSIGN, senderLocale), NamedTextColor.YELLOW));
                     return;
                 }
                 if (groupManager.removeChunk(cgroup, pos)) {
-                    player.sendMessage(Component.text("Actions successfully performed.", NamedTextColor.GREEN));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CMD_SUCCESS, senderLocale), NamedTextColor.GREEN));
                 } else {
-                    player.sendMessage(Component.text("Internal error. Try again.", NamedTextColor.RED));
+                    player.sendMessage(Component.text(i18n.get(I18NKey.CMD_INTERNAL_CONCURRENCY_ERROR, senderLocale), NamedTextColor.RED));
                 }
                 return;
             }
             ChunkGroup cgroup = DataSource.getData().getChunkGroupManager().getChunkGroup(player.getUniqueId(), args[0]);
             if (cgroup == null) {
-                player.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_A_GROUP, senderLocale), NamedTextColor.RED)
                         .append(Component.text(args[0], NamedTextColor.DARK_RED)));
                 return;
             } else {
                 player.sendMessage(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)
                         .append(Component.text(cgroup.getName(), NamedTextColor.YELLOW))
                         .append(Component.text(" ==== ", NamedTextColor.DARK_PURPLE)));
-                player.sendMessage(Component.text("Group owner: ")
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_LIST_GROUP_OWNER, senderLocale))
                         .append(player.displayName().colorIfAbsent(NamedTextColor.GOLD)));
-                player.sendMessage(Component.text("Group size: ")
+                player.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_LIST_GROUP_SIZE, senderLocale))
                         .append(Component.text(cgroup.claimedChunks().size(), NamedTextColor.GOLD)));
                 PermissionMatrix perms = cgroup.permissions();
-                player.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + cgroup.name() + " attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + cgroup.name() + " attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + cgroup.name() + " build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + cgroup.name() + " destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + cgroup.name() + " harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + cgroup.name() + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + cgroup.name() + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
-                player.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + cgroup.name() + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + cgroup.name() + " attack", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + cgroup.name() + " attackNamed", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK_NAMED, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + cgroup.name() + " build", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_BUILD, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + cgroup.name() + " destroy", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_DESTORY, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + cgroup.name() + " harvest", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_HARVEST, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + cgroup.name() + " interact", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + cgroup.name() + " interactEntity", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT_ENTITY, senderLocale), NamedTextColor.DARK_GRAY)));
+                player.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + cgroup.name() + " trample", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_TRAMPLE, senderLocale), NamedTextColor.DARK_GRAY)));
                 Component comp;
                 if (perms.getExplosionsEnabled()) {
-                    comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
-                            .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+                    comp = Component.text(i18n.get(I18NKey.PERM_ENABLED, senderLocale), NamedTextColor.GRAY, TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_ENABLED, senderLocale))));
                 } else {
-                    comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
-                            .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+                    comp = Component.text(i18n.get(I18NKey.PERM_DISABLED, senderLocale), NamedTextColor.RED, TextDecoration.BOLD)
+                            .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_DISABLED, senderLocale))));
                 }
                 player.sendMessage(comp.clickEvent(ClickEvent.runCommand("/claims perm toggle " + cgroup.name() + " explosion"))
-                        .append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
+                        .append(Component.text(i18n.get(I18NKey.PERM_EXPLOSION, senderLocale), NamedTextColor.DARK_GRAY)));
             }
             return;
         }
     }
 
     @NotNull
-    @Contract(value = "_ -> new", pure = true)
-    private Component texifyPermissionBitfieldReadonly(int permissions) {
+    @Contract(value = "_, !null -> new; _, null -> fail", pure = true)
+    private Component texifyPermissionBitfieldReadonly(int permissions, @NotNull Locale i18nLocale) {
         boolean owner = (permissions & PermissionMatrix.PERSON_OWNER) != 0;
         boolean trusted = (permissions & PermissionMatrix.PERSON_TRUSTED) != 0;
         boolean visitor = (permissions & PermissionMatrix.PERSON_STRANGER) != 0;
@@ -464,31 +481,32 @@ public class PresenceBukkit extends JavaPlugin {
         Component visitorComp;
         if (owner) {
             ownerComp = Component.text('O', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for the owner.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_OWNER, i18nLocale))));
         } else {
             ownerComp = Component.text('O', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for the owner.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_OWNER, i18nLocale))));
         }
         if (trusted) {
             trustedComp = Component.text('T', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for trusted people.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_TRUSTED, i18nLocale))));
         } else {
             trustedComp = Component.text('T', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for trusted people.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_TRUSTED, i18nLocale))));
         }
         if (visitor) {
             visitorComp = Component.text('V', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current allowed for visitors.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_VISITOR, i18nLocale))));
         } else {
             visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for visitors.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_VISITOR, i18nLocale))));
         }
+        // There was a TODO here, but I have no idea why
         return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
     }
 
     @NotNull
-    @Contract(value = "_, !null -> new; _, null -> fail", pure = true)
-    private Component texifyPermissionBitfield(int permissions, @NotNull String commandPrefix) {
+    @Contract(value = "_, !null, !null -> new; _, null, _ -> fail; _, _, null -> fail", pure = true)
+    private Component texifyPermissionBitfield(int permissions, @NotNull String commandPrefix, @NotNull Locale i18nLocale) {
         boolean owner = (permissions & PermissionMatrix.PERSON_OWNER) != 0;
         boolean trusted = (permissions & PermissionMatrix.PERSON_TRUSTED) != 0;
         boolean visitor = (permissions & PermissionMatrix.PERSON_STRANGER) != 0;
@@ -498,29 +516,29 @@ public class PresenceBukkit extends JavaPlugin {
         if (owner) {
             ownerComp = Component.text('O', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " owner deny"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for you.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_OWNER_SELF, i18nLocale))));
         } else {
             ownerComp = Component.text('O', NamedTextColor.GRAY, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " owner allow"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for you.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_OWNER_SELF, i18nLocale))));
         }
         if (trusted) {
             trustedComp = Component.text('T', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted deny"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current enabled for trusted people.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_TRUSTED, i18nLocale))));
         } else {
             trustedComp = Component.text('T', NamedTextColor.GRAY, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " trusted allow"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for trusted people.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_TRUSTED, i18nLocale))));
         }
         if (visitor) {
             visitorComp = Component.text('V', NamedTextColor.DARK_GREEN, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor deny"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current allowed for visitors.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_ENABLED_VISITOR, i18nLocale))));
         } else {
             visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
                     .clickEvent(ClickEvent.runCommand(commandPrefix + " visitor allow"))
-                    .hoverEvent(HoverEvent.showText(Component.text("Current disabled for visitors.")));
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_VISITOR, i18nLocale))));
         }
         return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
     }
@@ -558,9 +576,10 @@ public class PresenceBukkit extends JavaPlugin {
             sender.sendMessage(Component.text("Only players can manage their permissions!", NamedTextColor.RED));
             return;
         }
+        Locale senderLocale = p.locale();
         if (args.length != 1 && args.length != 6 && args.length != 4) {
-            sender.sendMessage(Component.text("Syntax is: /claims " + args[0] + " set global|<group> <action> <person> allow|deny", NamedTextColor.RED));
-            sender.sendMessage(Component.text("Or: /claims " + args[0] + " toggle global|<group> <action>", NamedTextColor.RED));
+            sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_CMD_SYNTAX_A, senderLocale, args[0]), NamedTextColor.RED));
+            sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_CMD_SYNTAX_B, senderLocale, args[0]), NamedTextColor.RED));
             return;
         }
         PermissionMatrix perms = DataSource.getData().getChunkGroupManager().getPermissionMatrix(p.getUniqueId(), null);
@@ -570,7 +589,7 @@ public class PresenceBukkit extends JavaPlugin {
             if (args[1].equals("set")) {
                 boolean allow = args[5].equalsIgnoreCase("allow");
                 if (!allow && !args[5].equalsIgnoreCase("deny")) {
-                    sender.sendMessage(Component.text("Syntax is: /claims " + args[0] + " set global|<group> <action> <person> allow|deny", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_CMD_SYNTAX_A, senderLocale, args[0]), NamedTextColor.RED));
                     return;
                 }
                 int person;
@@ -591,20 +610,20 @@ public class PresenceBukkit extends JavaPlugin {
                     person = PermissionMatrix.PERSON_STRANGER;
                     break;
                 default:
-                    sender.sendMessage(Component.text("Unknown person: " + args[4] + ", should be either owner, trusted or visitor.", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_UNKNOWN_PERSON, senderLocale, args[4]), NamedTextColor.RED));
                     return;
                 }
                 if (args[2].equals("global")) {
                    perms = alter(perms, args[3], person, allow);
                    if (perms == null) {
-                       sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                       sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_UNKNOWN_ACTION, senderLocale, args[3]), NamedTextColor.RED));
                        return;
                    }
                    DataSource.getData().getChunkGroupManager().setPlayerDefaultPermissions(p.getUniqueId(), perms);
                 } else {
                     ChunkGroup group = DataSource.getData().getChunkGroupManager().getChunkGroup(p.getUniqueId(), args[2]);
                     if (group == null) {
-                        sender.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                        sender.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_A_GROUP, senderLocale), NamedTextColor.RED)
                                 .append(Component.text(args[2], NamedTextColor.DARK_RED)));
                         return;
                     }
@@ -613,7 +632,7 @@ public class PresenceBukkit extends JavaPlugin {
                         PermissionMatrix oldPerm = perms;
                         perms = alter(perms, args[3], person, allow);
                         if (perms == null) {
-                            sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                            sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_UNKNOWN_ACTION, senderLocale, args[3]), NamedTextColor.RED));
                             return;
                         }
                         if (group.permissionRef().compareAndSet(oldPerm, perms)) {
@@ -626,7 +645,7 @@ public class PresenceBukkit extends JavaPlugin {
         } else if (args.length == 4) {
             if (args[1].equals("toggle")) {
                 if (!args[3].equals("explosion")) {
-                    sender.sendMessage(Component.text("Unknown action: " + args[3] + ".", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(i18n.get(I18NKey.PERM_UNKNOWN_ACTION, senderLocale, args[3]), NamedTextColor.RED));
                     return;
                 }
                 if (args[2].equals("global")) {
@@ -636,7 +655,7 @@ public class PresenceBukkit extends JavaPlugin {
                  } else {
                      ChunkGroup group = DataSource.getData().getChunkGroupManager().getChunkGroup(p.getUniqueId(), args[2]);
                      if (group == null) {
-                         sender.sendMessage(Component.text("Unknown chunk group: ", NamedTextColor.RED)
+                         sender.sendMessage(Component.text(i18n.get(I18NKey.CHUNKGROUPS_NOT_A_GROUP, senderLocale), NamedTextColor.RED)
                                  .append(Component.text(args[2], NamedTextColor.DARK_RED)));
                          return;
                      }
@@ -650,30 +669,30 @@ public class PresenceBukkit extends JavaPlugin {
                      }
                      groupName = args[2];
                  }
-                sender.sendMessage(Component.text("Action performed.", NamedTextColor.GREEN));
+                sender.sendMessage(Component.text(i18n.get(I18NKey.CMD_SUCCESS, senderLocale), NamedTextColor.GREEN));
             }
         }
 
         sender.sendMessage(Component.empty());
         sender.sendMessage(Component.empty());
-        sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + groupName + " attack").append(Component.text("Attack", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + groupName + " attackNamed").append(Component.text("Attack Named Entities", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + groupName + " build").append(Component.text("Build blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + groupName + " destroy").append(Component.text("Destroy blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + groupName + " harvest").append(Component.text("Harvest crops", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + groupName + " interact").append(Component.text("Interact with blocks", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + groupName + " interactEntity").append(Component.text("Interact with entities", NamedTextColor.DARK_GRAY)));
-        sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + groupName + " trample").append(Component.text("Trample farmland", NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackBitfield(), "/claims perm set " + groupName + " attack", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getAttackNamedBitfield(), "/claims perm set " + groupName + " attackNamed", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_ATTACK_NAMED, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getBuildBitfield(), "/claims perm set " + groupName + " build", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_BUILD, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getDestroyBitfield(), "/claims perm set " + groupName + " destroy", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_DESTORY, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getHarvestCropsBitfield(), "/claims perm set " + groupName + " harvest", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_HARVEST, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractBlockBitfield(), "/claims perm set " + groupName + " interact", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getInteractEntityBitfield(), "/claims perm set " + groupName + " interactEntity", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_INTERACT_ENTITY, senderLocale), NamedTextColor.DARK_GRAY)));
+        sender.sendMessage(texifyPermissionBitfield(perms.getTrampleBitfield(), "/claims perm set " + groupName + " trample", senderLocale).append(Component.text(i18n.get(I18NKey.PERM_TRAMPLE, senderLocale), NamedTextColor.DARK_GRAY)));
         Component comp;
         if (perms.getExplosionsEnabled()) {
-            comp = Component.text("ENABLED", NamedTextColor.GRAY, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Blocks can be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+            comp = Component.text(i18n.get(I18NKey.PERM_ENABLED, senderLocale), NamedTextColor.GRAY, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_ENABLED, senderLocale))));
         } else {
-            comp = Component.text("DISABLED", NamedTextColor.RED, TextDecoration.BOLD)
-                    .hoverEvent(HoverEvent.showText(Component.text("Blocks cannot be damaged by explosions right now. Click the text you are hovering over right now to toggle this.")));
+            comp = Component.text(i18n.get(I18NKey.PERM_DISABLED, senderLocale), NamedTextColor.RED, TextDecoration.BOLD)
+                    .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_EXPLOSION_DISABLED, senderLocale))));
         }
         sender.sendMessage(comp.clickEvent(ClickEvent.runCommand("/claims perm toggle " + groupName + " explosion"))
-                .append(Component.text(" Explosions", NamedTextColor.DARK_GRAY)));
+                .append(Component.text(i18n.get(I18NKey.PERM_EXPLOSION, senderLocale), NamedTextColor.DARK_GRAY)));
     }
 
     private void removeFlight(Player player) {
@@ -696,6 +715,17 @@ public class PresenceBukkit extends JavaPlugin {
     public void onEnable() {
         // Load data and configuration
         saveDefaultConfig();
+
+        File i18nFile = new File(getDataFolder(), "translations.json");
+        if (!i18nFile.exists()) {
+            saveResource("translations.json", false);
+        }
+        try {
+            i18n.load(i18nFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         FileConfiguration bukkitCfg = getConfig();
         Set<Material> harvestableCrops = new HashSet<>();
         for (String s : bukkitCfg.getStringList("harvestable-crops")) {
@@ -815,6 +845,7 @@ public class PresenceBukkit extends JavaPlugin {
                 if (p == null) {
                     continue;
                 }
+                Locale playerLocale = p.locale();
                 Location loc = p.getLocation();
                 int chunkX = loc.getBlockX() >> 4;
                 int chunkY = loc.getBlockZ() >> 4;
@@ -828,7 +859,7 @@ public class PresenceBukkit extends JavaPlugin {
                         if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.contains(p.getUniqueId())) {
                             removeFlight(p);
                         }
-                        sendActionbarMessage(p, "You are now in the wild.", NamedTextColor.GREEN);
+                        sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_WILDERNESS, playerLocale), NamedTextColor.GREEN);
                         PLAYER_LOCATIONS.put(p.getUniqueId(), null);
                     } else {
                         // Same state -> do nothing
@@ -840,7 +871,7 @@ public class PresenceBukkit extends JavaPlugin {
                         // Same state -> do nothing
                     } else if (newClaimOwner.equals(p.getUniqueId())) {
                         // Entered the own claim
-                        sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
+                        sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_OWN_CLAIM, playerLocale), NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimOwner);
@@ -848,9 +879,9 @@ public class PresenceBukkit extends JavaPlugin {
                             if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.remove(p.getUniqueId())) {
                                 removeFlight(p);
                             }
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
+                            sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.YELLOW);
                         } else {
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
+                            sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.DARK_BLUE);
                         }
                     }
                 } else {
@@ -863,14 +894,14 @@ public class PresenceBukkit extends JavaPlugin {
                             // Regain flying powers
                             p.setAllowFlight(true);
                         }
-                        sendActionbarMessage(p, "You are now entering your claim.", NamedTextColor.DARK_GREEN);
+                        sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_OWN_CLAIM, playerLocale), NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
                         OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
                         if (!data.getChunkGroupManager().isTrusted(newClaimId, p.getUniqueId())) {
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.YELLOW);
+                            sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.YELLOW);
                         } else {
-                            sendActionbarMessage(p, "You are now entering the claim of " + claimOwner.getName() + ".", NamedTextColor.DARK_BLUE);
+                            sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.DARK_BLUE);
                         }
                     }
                 }
@@ -974,6 +1005,15 @@ public class PresenceBukkit extends JavaPlugin {
             UUID plyr = player.getUniqueId();
             PresenceData data = DataSource.getData();
 
+            final Locale playerLocale = player.locale();
+            final String relationTypeOwner = i18n.get(I18NKey.CLAIMMAP_RELATION_OWNER, playerLocale);
+            final String relationTypeTrusted = i18n.get(I18NKey.CLAIMMAP_RELATION_TRUSTED, playerLocale);
+            final String relationTypeNeutral = i18n.get(I18NKey.CLAIMMAP_RELATION_NEUTRAL, playerLocale);
+            final String relationTypeOther = i18n.get(I18NKey.CLAIMMAP_RELATION_OTHER, playerLocale);
+            final String relationTypeThisChunk = i18n.get(I18NKey.CLAIMMAP_RELATION_THIS_CHUNK, playerLocale);
+            final String ownerKey = i18n.get(I18NKey.CLAIMMAP_OWNER, playerLocale);
+            final String noowner = i18n.get(I18NKey.CLAIMMAP_NO_OWNER, playerLocale);
+
             for (int yDelta = -5; yDelta < 5; yDelta++) {
                 Component comp = Component.empty();
                 for (int xDelta = -14; xDelta < 14; xDelta++) {
@@ -984,38 +1024,39 @@ public class PresenceBukkit extends JavaPlugin {
 
                     String location = "Chunk " + (chunkX + xDelta) + "/" + (chunkY + yDelta);
                     String ownerName;
+                    @NotNull
                     String type;
                     TextColor colorCoding;
 
                     UUID owner = leader == null ? null : leader.getPlayer();
                     if (owner == null) {
-                        type = "Unclaimed";
-                        ownerName = "None";
+                        type = relationTypeNeutral;
+                        ownerName = noowner;
                         colorCoding = NamedTextColor.GRAY;
                         chunk.color(NamedTextColor.GRAY);
                     } else {
                         ownerName = getPlayerName(owner);
 
                         if (owner.equals(plyr)) {
-                            type = "Owned";
+                            type = relationTypeOwner;
                             colorCoding = NamedTextColor.DARK_GREEN;
                         } else if (data.getChunkGroupManager().isTrusted(owner, plyr)) {
                             colorCoding = NamedTextColor.DARK_BLUE;
-                            type = "Trusted";
+                            type = relationTypeTrusted;
                         } else {
                             colorCoding = NamedTextColor.RED;
-                            type = "Other";
+                            type = relationTypeOther;
                         }
                     }
 
                     if (xDelta == 0 && yDelta == 0) {
                         colorCoding = NamedTextColor.GOLD;
-                        type = "This chunk";
+                        type = relationTypeThisChunk;
                     }
 
                     chunk.color(colorCoding);
                     chunk.hoverEvent(HoverEvent.showText(Component.text(location, NamedTextColor.YELLOW, TextDecoration.BOLD)
-                            .append(Component.newline()).append(Component.text("Owner: " + ownerName, colorCoding))
+                            .append(Component.newline()).append(Component.text(ownerKey + ownerName, colorCoding))
                             .append(Component.newline()).append(Component.text(type, colorCoding))));
 
                     comp = comp.append(chunk);
@@ -1054,5 +1095,11 @@ public class PresenceBukkit extends JavaPlugin {
         } else {
             successorPresence.setScore(successor.score().get());
         }
+    }
+
+    @NotNull
+    @Contract(pure = true)
+    LocalisationContainer getI18N() {
+        return i18n;
     }
 }
