@@ -52,6 +52,9 @@ public class PresenceData {
 
     public PresenceData(double tickNearbyChance) {
         recursiveTick = tickNearbyChance;
+        if (this.recursiveTick >= 1.0D) {
+            throw new IllegalArgumentException("The tickNearbyChance can only range from 0.0 to 1.0");
+        }
     }
 
     public boolean canAttack(@NotNull UUID player, @NotNull UUID world, int x, int y) {
@@ -295,7 +298,7 @@ public class PresenceData {
         PlayerAttachedPosition entry = new PlayerAttachedPosition(id, worldPos);
         PlayerAttachedScore tickedRecord = counts.get(entry);
         if (tickedRecord == null) {
-            tickedRecord = new PlayerAttachedScore(world, new AtomicInteger(0));
+            tickedRecord = new PlayerAttachedScore(id, new AtomicInteger(0));
             PlayerAttachedScore retain = counts.putIfAbsent(entry, tickedRecord);
             if (retain != null) { // Race condition
                 tickedRecord = retain;
@@ -323,12 +326,20 @@ public class PresenceData {
                         if (oldSuccessor == null) { // There is no successor, so we can easily change it now
                             oldSuccessor = successors.putIfAbsent(worldPos, oldLeader);
                         }
-                        if (oldSuccessor != null && oldLeader != oldSuccessor
-                                && oldSuccessor.score().get() < oldLeader.score().get()
-                                && !successors.replace(worldPos, oldSuccessor, oldLeader)) {
-                            continue; // The old value changed in the meantime: let's have another poke at it
+                        
+                        if (oldSuccessor == tickedRecord) { // Instance comparison intended
+                            if (!successors.replace(worldPos, tickedRecord, oldLeader)) {
+                                continue;
+                            }
+                        } else {
+                            if (oldSuccessor != null && oldLeader != oldSuccessor
+                                    && oldSuccessor.score().get() < oldLeader.score().get()
+                                    && !successors.replace(worldPos, oldSuccessor, oldLeader)) {
+                                continue; // The old value changed in the meantime: let's have another poke at it
+                            }
                         }
-                    } while(false);
+                        break;
+                    } while(true);
                 } else {
                     do {
                         PlayerAttachedScore oldSuccessor = successors.get(worldPos);
@@ -340,9 +351,11 @@ public class PresenceData {
                                 && !successors.replace(worldPos, oldSuccessor, tickedRecord)) {
                             continue; // The old value changed in the meantime: let's have another poke at it
                         }
-                    } while(false);
+                        break;
+                    } while(true);
                 }
             }
-        } while(false); // While(true)'s alter ego
+            break;
+        } while(true);
     }
 }
