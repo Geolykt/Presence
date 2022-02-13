@@ -1,10 +1,41 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>de.geolykt</groupId>
-  <artifactId>presence</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <name>Presence</name>
-  <description>A presence-based claiming plugin for bukkit</description>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>de.geolykt</groupId>
+    <artifactId>presence</artifactId>
+    <version>1.0.0</version>
+    <name>Presence</name>
+    <description>A presence-based claiming plugin for bukkit</description>
+    <inceptionYear>2021</inceptionYear>
+
+    <properties>
+       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>geolykt</id>
+            <email>mail@geolykt.de</email>
+            <name>Geolykt</name>
+            <organization>N/A</organization>
+            <timezone>+1</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:Geolykt/Presence.git</connection>
+        <tag>main</tag>
+        <url>https://github.com/Geolykt/Presence</url>
+    </scm>
 
     <repositories>
         <repository>
@@ -16,6 +47,15 @@
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
     </repositories>
+
+    <distributionManagement>
+        <repository>
+            <id>geolykt-maven-ftp</id>
+            <!-- This is the developer connection. The actual repository 
+                is located under https://geolykt.de/maven/ -->
+            <url>ftp://geolykt.de/geolykt.de/public_html/maven/</url>
+        </repository>
+    </distributionManagement>
 
     <dependencies>
         <dependency>
@@ -53,6 +93,14 @@
     </pluginRepositories>
 
     <build>
+        <extensions>
+            <!-- Enabling the use of FTP -->
+            <extension>
+                <groupId>org.apache.maven.wagon</groupId>
+                <artifactId>wagon-ftp</artifactId>
+                <version>3.5.1</version>
+            </extension>
+        </extensions>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -82,10 +130,21 @@
                             <shadedPattern>de.geolykt.presense.i18n.json</shadedPattern>
                         </relocation>
                     </relocations>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                                <exclude>META-INF/MANIFEST.MF</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
                 </configuration>
             </plugin>
         </plugins>
-    
+
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
