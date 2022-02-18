@@ -45,7 +45,8 @@ import org.jetbrains.annotations.Nullable;
  * some operations may results in locks being used. Each supercell uses itself as a lock in case it's internal list
  * of regions needs to be created or expanded. This means that {@link #get(int, int)} and {@link #compareAndSet(int, int, Object, Object)}
  * can block for a bit longer than usual if the value is previously unmapped and there isn't a value in the current
- * region set.
+ * region set. Additionally the {@link #equals(Object)} method is blocking write requests to the regions.
+ * Usage fo that method is not recommended. Similarly {@link #hashCode()} does only yield an identity hashcode.
  *
  * JMH Benchmarks for the #set operation:
  * <pre>
@@ -123,10 +124,48 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
     private static class Supercell<V> {
         // AtomicReferenceArray sadly does not support expansion at adequate terms
         private volatile AtomicReferenceArray<V>[] regions;
+        // Used to reduce the performance required to call #equals()
+        private volatile boolean modified = false;
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof Supercell<?> other) {
+                if (this.modified != other.modified) {
+                    return false;
+                }
+                if (!this.modified && !other.modified) {
+                    return true;
+                }
+                AtomicReferenceArray<?>[] otherRefArray = other.regions;
+                AtomicReferenceArray<?>[] thisRefArray = this.regions;
+                if (otherRefArray.length != thisRefArray.length) {
+                    return false;
+                }
+                for (int i = 0; i < thisRefArray.length; i++) {
+                    AtomicReferenceArray<?> a = otherRefArray[i];
+                    AtomicReferenceArray<?> b = thisRefArray[i];
+                    if (a == null) {
+                        if (b == null) {
+                            continue;
+                        }
+                        return false;
+                    } else if (b == null) {
+                        return false;
+                    }
+                    for (int j = 0; j < REGION_SIZE; j++) {
+                        if (!Objects.equals(a.get(j), b.get(j))) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
 
         /**
          * Obtains the currently set value and compares it with the expected value.
-         * If they are equal (as per {@link Objects#equals(Object, Object)}) the currently set value is
+         * If they are equal (as per {@code ==}) the currently set value is
          * replaced and the method returns true, if they are not equal the currently stored value
          * is left unmodified and the method returns false.
          * The method behaves in an atomic manner.
@@ -138,6 +177,7 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
          * @return True if the cell was modified, false otherwise
          */
         public boolean compareAndSet(int key1, int key2, @Nullable V expected, @NotNull V value) {
+            this.modified = true;
             int position = (key1 & REGION_BITMASK) | ((key2 & REGION_BITMASK) >> CELL_BIT_SHIFT);
 
             if (regions == null || regions.length <= position) {
@@ -178,6 +218,7 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
 
         @Nullable
         public V put(int key1, int key2, @NotNull V value) {
+            this.modified = true;
             int position = (key1 & REGION_BITMASK) | ((key2 & REGION_BITMASK) >> CELL_BIT_SHIFT);
 
             if (regions == null || regions.length <= position) {
@@ -229,6 +270,12 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
             return region.get((key1 & CELL_BITMASK) << CELL_BIT_SHIFT | (key2 & CELL_BITMASK));
         }
 
+        @Override
+        public int hashCode() {
+            // TODO Auto-generated method stub
+            return super.hashCode();
+        }
+
         /**
          * Obtains the currently set value and checks whether it exists.
          * If it exists, it returns the value, otherwise it sets the value of the cell to the specified value.
@@ -241,6 +288,7 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
          */
         @Nullable
         public V putIfAbsent(int key1, int key2, @NotNull V value) {
+            this.modified = true;
             int position = (key1 & REGION_BITMASK) | ((key2 & REGION_BITMASK) >> CELL_BIT_SHIFT);
 
             if (regions == null || regions.length <= position) {
@@ -299,6 +347,19 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
         }
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof RegionatedIntIntToObjectMap<?> other) {
+            for (int i = 0; i < supercells.length; i++) {
+                if (!this.supercells[i].equals(other.supercells[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Nullable
     public V put(int key1, int key2, @NotNull V value) {
         if (key1 < 0) {
@@ -321,6 +382,12 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
         }
         int supercell = (key1 >>> KEY_TO_SUPERCELL_SHIFT) << SUPERCELL_SHIFT | key2 >>> KEY_TO_SUPERCELL_SHIFT;
         return supercells[supercell].get(key1, key2);
+    }
+
+    @Override
+    public int hashCode() {
+        // TODO Auto-generated method stub
+        return super.hashCode();
     }
 
     /**
@@ -368,5 +435,4 @@ public class RegionatedIntIntToObjectMap<V extends Object> {
         int supercell = (key1 >>> KEY_TO_SUPERCELL_SHIFT) << SUPERCELL_SHIFT | key2 >>> KEY_TO_SUPERCELL_SHIFT;
         return supercells[supercell].putIfAbsent(key1, key2, value);
     }
-
 }

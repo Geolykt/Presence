@@ -305,6 +305,11 @@ public class ChunkGroupManager {
         return type;
     }
 
+    @Override
+    public int hashCode() {
+        return groupedChunks.hashCode() ^ 0x485986 ^ playerDefaults.hashCode() ^ trustedPlayers.hashCode();
+    }
+
     /**
      * Checks whether the player "trusted" is within the list of trusted players of the player "truster".
      * This method is fully safe to use in a concurrent environment, provided it isn't within the loading phase.
@@ -529,6 +534,16 @@ public class ChunkGroupManager {
         }
         playerGroups.add(group);
         return group;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof ChunkGroupManager other) {
+            return other.groupedChunks.equals(this.groupedChunks)
+                    && other.playerDefaults.equals(this.playerDefaults)
+                    && other.trustedPlayers.equals(this.trustedPlayers);
+        }
+        return false;
     }
 
     @Nullable

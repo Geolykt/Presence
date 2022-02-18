@@ -25,6 +25,14 @@ public class UUIDIntIntConcurrentMap<V> {
     @NotNull
     private final ConcurrentHashMap<UUID, RegionatedIntIntToObjectMap<V>> root = new ConcurrentHashMap<>();
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof UUIDIntIntConcurrentMap<?> other) {
+            return this.root.equals(other.root);
+        }
+        return false;
+    }
+
     @Nullable
     public V get(@NotNull UUID id, int int1, int int2) {
         RegionatedIntIntToObjectMap<V> map = root.get(id);
@@ -32,6 +40,11 @@ public class UUIDIntIntConcurrentMap<V> {
             return null;
         }
         return map.get(int1, int2);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 
     @Nullable

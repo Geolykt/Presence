@@ -3,6 +3,7 @@ package de.geolykt.presence.common;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Objects;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -280,6 +281,23 @@ public final class PermissionMatrix {
         return (this.trample & person) != 0;
     }
 
+    @Override
+    @Contract(pure = true, value = "null -> false; !null -> _")
+    public boolean equals(Object obj) {
+        if (obj instanceof PermissionMatrix other) {
+            return other.attack == this.attack
+                    && other.attackNamed == this.attackNamed
+                    && other.build == this.build
+                    && other.destroy == this.destroy
+                    && other.explosions == this.explosions
+                    && other.harvestCrops == this.harvestCrops
+                    && other.interact == this.interact
+                    && other.interactEntity == this.interactEntity
+                    && other.trample == this.trample;
+        }
+        return false;
+    }
+
     @Contract(pure = true)
     public final byte getAttackBitfield() {
         return attack;
@@ -337,5 +355,12 @@ public final class PermissionMatrix {
         if (version != 0) {
             out.write(this.explosions ? 1 : 0); // Sometimes, I'd rather want to write pure bytecode (TODO write this in pure bytecode)
         }
+    }
+
+    @Override
+    @Contract(pure = true)
+    public int hashCode() {
+        return Objects.hash(this.attack, this.attackNamed, this.build, this.destroy, this.explosions, this.harvestCrops,
+                this.interact, this.interactEntity, this.trample);
     }
 }

@@ -85,23 +85,6 @@
             <scope>compile</scope>
         </dependency>
 
-        <!-- https://www.eclipse.org/collections -->
-        <!-- This enables us to signfinicantly reduce memory usage-->
-        <dependency>
-            <groupId>org.eclipse.collections</groupId>
-            <artifactId>eclipse-collections-api</artifactId>
-            <version>11.0.0</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.eclipse.collections</groupId>
-            <artifactId>eclipse-collections</artifactId>
-            <version>11.0.0</version>
-            <scope>compile</scope>
-        </dependency>
-
-
         <!-- https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -159,10 +142,6 @@
                         <relocation>
                             <pattern>org.json</pattern>
                             <shadedPattern>de.geolykt.presence.i18n.json</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.eclipse.collections</pattern>
-                            <shadedPattern>de.geolykt.presence.common.util.eclipse-collections</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>

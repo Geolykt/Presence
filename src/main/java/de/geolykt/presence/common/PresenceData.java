@@ -19,6 +19,7 @@ import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
 import java.util.zip.Checksum;
 
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -139,6 +140,15 @@ public class PresenceData {
         return chunkGroups.canTrampleCrops(record.getPlayer(), player, pos);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof PresenceData other) {
+            return other.chunkGroups.equals(this.chunkGroups)
+                    && other.counts.equals(this.counts);
+        }
+        return false;
+    }
+
     @NotNull
     public ChunkGroupManager getChunkGroupManager() {
         return chunkGroups;
@@ -161,6 +171,27 @@ public class PresenceData {
     @Nullable
     public PlayerAttachedScore getSuccessor(UUID world, int x, int y) {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
+    }
+
+    /**
+     * Checks whether fields that are not checked in the {@link PresenceData#equals(Object)} method are equal.
+     * This method is only meant to be used in unit tests as it does not care about the "main" fields that store
+     * the actual state of the object.
+     * <p> Side note: As the data structures used by these auxiliary fields do not support iteration
+     * of keys or values, this method is SLOW as it more or less computes the equality with brute force.
+     *
+     * @param other The object to check for auxiliary equality
+     * @param True if the leader and successor maps are equal
+     * @apiNote Not intended to be public api
+     */
+    @Contract(pure = true, value = "null -> fail; !null -> _")
+    protected boolean hasAuxiliaryEquality(@NotNull PresenceData other) {
+        return this.leaders.equals(other.leaders) && this.successors.equals(other.successors);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.counts.hashCode() ^ this.chunkGroups.hashCode() ^ 0xA75176;
     }
 
     public synchronized void load(@NotNull File dataFolder) {
@@ -211,7 +242,11 @@ public class PresenceData {
             PlayerAttachedScore oldLeader = leaders.get(world, x, z);
             PlayerAttachedScore loadedPlayer = new PlayerAttachedScore(player, new AtomicInteger(value));
             if (oldLeader == null || oldLeader.score().get() < value) {
-                leaders.set(world, x, z, loadedPlayer); // Set the leader to a more accurate value
+                PlayerAttachedScore old = leaders.set(world, x, z, loadedPlayer); // Set the leader to a more accurate value
+                if (old != null) {
+                    successors.put(worldPos, old); // The old leader must have more score than the current successor,
+                    // and thus we can just overwrite the old successor without looking at the old value
+                }
             } else {
                 PlayerAttachedScore successor = successors.get(worldPos);
                 if (successor == null || successor.score().get() < value) {
@@ -329,7 +364,7 @@ public class PresenceData {
                         if (oldSuccessor == null) { // There is no successor, so we can easily change it now
                             oldSuccessor = successors.putIfAbsent(worldPos, oldLeader);
                         }
-                        
+
                         if (oldSuccessor == tickedRecord) { // Instance comparison intended
                             if (!successors.replace(worldPos, tickedRecord, oldLeader)) {
                                 continue;

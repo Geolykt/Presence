@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import de.geolykt.presence.common.util.RegionatedIntIntToObjectMap;
 
-public class ConcurrentLongToObjectMapTests {
+public class IntIntToObjectMapTests {
 
     private static record IntIntEntry(int key1, int key2) {}
 
