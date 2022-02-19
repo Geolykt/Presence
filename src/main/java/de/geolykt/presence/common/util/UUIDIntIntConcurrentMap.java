@@ -61,7 +61,7 @@ public class UUIDIntIntConcurrentMap<V> {
     }
 
     @Nullable
-    public V putIfAbsent(UUID id, int int1, int int2, @NotNull V value) {
+    public V putIfAbsent(@NotNull UUID id, int int1, int int2, @NotNull V value) {
         RegionatedIntIntToObjectMap<V> map = root.get(id);
         if (map == null) {
             map = new RegionatedIntIntToObjectMap<>();
@@ -73,7 +73,7 @@ public class UUIDIntIntConcurrentMap<V> {
         return map.putIfAbsent(int1, int2, value);
     }
 
-    public boolean replace(UUID id, int int1, int int2, @NotNull V expectedValue, @NotNull V value) {
+    public boolean replace(@NotNull UUID id, int int1, int int2, @NotNull V expectedValue, @NotNull V value) {
         RegionatedIntIntToObjectMap<V> map = root.get(id);
         if (map == null) {
             map = new RegionatedIntIntToObjectMap<>();
@@ -83,5 +83,10 @@ public class UUIDIntIntConcurrentMap<V> {
             }
         }
         return map.compareAndSet(int1, int2, expectedValue, value);
+    }
+
+    @Nullable
+    public RegionatedIntIntToObjectMap<V> getSubMap(@NotNull UUID id) {
+        return root.get(id);
     }
 }

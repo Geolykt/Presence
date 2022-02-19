@@ -27,6 +27,9 @@ public class SerialisationTests {
     }
 
     // TODO this test is taking quite a long time, we might look into how we can optimise the calls to it
+    // After a bit of testing I have come to the conclusion that it is mostly caused by very frequent
+    // UUIDIntIntConcurrentMap#root lookups. I assume that a bulk-oriented tick method can thus multiply performance
+    // by two.
     @Test
     public void testTickedSerialisation() {
         TestPresenceData data = new TestPresenceData();
@@ -40,7 +43,7 @@ public class SerialisationTests {
         }
         assertNotNull(tickingPlayer2);
 
-        for (int i = -10000; i < 100; i++) {
+        for (int i = -10_000; i < 100; i++) {
             data.tick(tickingPlayer1, world, i, i);
             data.tick(tickingPlayer2, world, i, i);
             data.tick(tickingPlayer2, world, i, i);

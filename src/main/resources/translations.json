@@ -92,7 +92,7 @@
 			"CLAIMMAP_NO_OWNER": "None",
 
 			"MOVEMENT_TO_WILDERNESS": "You are now in the wild.",
-			"MOVEMENT_TO_OWN_CLAIM": "You are now entering your claim.",
+			"MOVEMENT_TO_OWN_CLAIM": "You are now entering your own claim.",
 			"MOVEMENT_TO_FOREIGN_CLAIM": "You are now entering the claim of %s.",
 
 			"ACTION_NOT_PERMITTED": "You cannot perform this action as the owner of this claim does not allow doing this action in this chunk."

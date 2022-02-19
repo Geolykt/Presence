@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 
 import de.geolykt.presence.common.util.PlayerAttachedPosition;
 import de.geolykt.presence.common.util.PlayerAttachedScore;
+import de.geolykt.presence.common.util.RegionatedIntIntToObjectMap;
 import de.geolykt.presence.common.util.UUIDIntIntConcurrentMap;
 import de.geolykt.presence.common.util.WorldPosition;
 
@@ -171,6 +172,21 @@ public class PresenceData {
     @Nullable
     public PlayerAttachedScore getSuccessor(UUID world, int x, int y) {
         return successors.get(new WorldPosition(world, hashPositions(x, y)));
+    }
+
+    /**
+     * Obtains a {@link RegionatedIntIntToObjectMap} which represents the owners mapped to chunks.
+     * When using this method the developer should be aware of the implication of {@link RegionatedIntIntToObjectMap}
+     * and should NOT use it to mutate the state of the world.
+     * <p>This method should only really be used for bulk get operations, otherwise {@link #getOwner(UUID, int, int)}
+     * is more suited.
+     *
+     * @param world The world's unique identifier
+     * @return The internal map for a given world, or null if there is no internal ownership map for the world.
+     */
+    @Nullable
+    public RegionatedIntIntToObjectMap<PlayerAttachedScore> getWorldOwnerMap(@NotNull UUID world) {
+        return leaders.getSubMap(world);
     }
 
     /**
