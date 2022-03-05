@@ -729,7 +729,7 @@ public class PresenceBukkit extends JavaPlugin {
         FileConfiguration bukkitCfg = getConfig();
         Set<Material> harvestableCrops = new HashSet<>();
         for (String s : bukkitCfg.getStringList("harvestable-crops")) {
-            if (s.codePointAt(0) != '#') {
+            if (s.codePointAt(0) == '#') {
                 String var10001 = s.substring(1);
                 if (var10001 == null) {
                     throw new NullPointerException(s);
