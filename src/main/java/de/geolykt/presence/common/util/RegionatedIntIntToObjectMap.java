@@ -110,6 +110,7 @@ import org.jetbrains.annotations.Nullable;
  * @implNote Due to how the class is written right now, if the developer knows that one key is usually smaller
  * than the other, then the generally lesser key should be the first argument.
  */
+@SuppressWarnings("javadoc")
 public class RegionatedIntIntToObjectMap<V extends Object> {
 
     /**

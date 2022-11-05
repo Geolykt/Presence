@@ -102,7 +102,7 @@ public class PresenceBukkit extends JavaPlugin {
         PlayerAttachedScore leader = presenceData.getOwner(world, chunkX, chunkY);
         PlayerAttachedScore successor = presenceData.getSuccessor(world, chunkX, chunkY);
         Locale locale = player.locale();
-        Objective objective = scoreboard.registerNewObjective("presence_claims", "dummy", Component.text(i18n.get(I18NKey.SCOREBOARD_TITLE, locale), NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
+        Objective objective = scoreboard.registerNewObjective("presence_claims", Bukkit.getScoreboardCriteria("dummy"), Component.text(i18n.get(I18NKey.SCOREBOARD_TITLE, locale), NamedTextColor.YELLOW, TextDecoration.BOLD), RenderType.INTEGER);
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
         objective.setRenderType(RenderType.INTEGER);
         Score claimownerPresence = objective.getScore(i18n.get(I18NKey.SCOREBOARD_OWNER_PRESENCE, locale));

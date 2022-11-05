@@ -148,7 +148,7 @@ public class PresenceListener implements Listener {
             }
         }
 
-        if (e.getEntity() instanceof Monster mob && mob.getCustomName() == null) {
+        if (e.getEntity() instanceof Monster mob && mob.customName() == null) {
             return; // Hostile mobs can be attacked no matter what provided they do not have a nametag
         }
 
@@ -178,7 +178,7 @@ public class PresenceListener implements Listener {
         int chunkX = loc.getBlockX() >> 4;
         int chunkY = loc.getBlockZ() >> 4;
 
-        if (e.getEntity().getCustomName() == null) {
+        if (e.getEntity().customName() == null) {
             if (!data.canAttack(damagerUUID, loc.getWorld().getUID(), chunkX, chunkY)) {
                 e.setCancelled(true);
                 if (damager != null) {
