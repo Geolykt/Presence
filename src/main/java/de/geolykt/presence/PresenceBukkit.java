@@ -69,13 +69,14 @@ public class PresenceBukkit extends JavaPlugin {
     // TODO dynmap integration
 
     private static final Map<UUID, UUID> PLAYER_LOCATIONS = new HashMap<>(); // For intelligent claim passing
+    private static final Map<UUID, UUID> PLAYER_WORLD = new HashMap<>(); // Used to bypass an unwanted feature concerning cross-dimension teleportation
     private static final Map<UUID, Score> SCOREBOARD_CLAIM_OWNER = new HashMap<>(); // For intelligent caching
     private static final Map<UUID, Score> SCOREBOARD_CLAIM_SELF = new HashMap<>();
     private static final Map<UUID, Score> SCOREBOARD_CLAIM_SUCCESSOR = new HashMap<>();
     private static final Map<UUID, Scoreboard> SCOREBOARD_SUBSCRIBERS = new HashMap<>();
     private static final Map<UUID, String> USER_NAME_CACHE = new ConcurrentHashMap<>();
 
-    private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>();
+    private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>(); // Don't ask what the difference between these two sets are
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
     private static final Map<UUID, Long> GRACEFUL_LAND = new HashMap<>();
 
@@ -500,7 +501,6 @@ public class PresenceBukkit extends JavaPlugin {
             visitorComp = Component.text('V', NamedTextColor.GRAY, TextDecoration.BOLD)
                     .hoverEvent(HoverEvent.showText(Component.text(i18n.get(I18NKey.PERM_TOOLTIP_DISABLED_VISITOR, i18nLocale))));
         }
-        // There was a TODO here, but I have no idea why
         return Component.join(SPACE_WITH_SPACE_SUFFIX, ownerComp, trustedComp, visitorComp);
     }
 
@@ -851,10 +851,18 @@ public class PresenceBukkit extends JavaPlugin {
                 int chunkY = loc.getBlockZ() >> 4;
                 UUID world = p.getWorld().getUID();
                 UUID oldClaim = PLAYER_LOCATIONS.get(p.getUniqueId());
+                UUID oldWorld = PLAYER_WORLD.put(p.getUniqueId(), world);
+                // Force an update of the fly status if the dimension changed.
+                // That is needed as some component (most likely the server) resets the player
+                // abilities to the defaults when moving between dimensions.
+                // While the paper team has confirmed that it is an issue within the server internals,
+                // it is unlikely that it will be changed due to them not being exactly
+                // sure about mojang's motives about the change.
+                boolean forceUpdate = oldWorld != null && !oldWorld.equals(world);
                 PlayerAttachedScore newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
                     // now in the wild
-                    if (oldClaim != null) {
+                    if (oldClaim != null || forceUpdate) {
                         // ... but was not in the wild before!
                         if (TEMPORARY_FLIGHT.remove(p.getUniqueId()) || SESSION_FLIGHT.contains(p.getUniqueId())) {
                             removeFlight(p);
@@ -867,10 +875,14 @@ public class PresenceBukkit extends JavaPlugin {
                 } else if (oldClaim != null) {
                     UUID newClaimOwner = newClaim.getPlayer();
                     PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimOwner);
-                    if (newClaimOwner.equals(oldClaim)) {
+                    if (!forceUpdate && newClaimOwner.equals(oldClaim)) {
                         // Same state -> do nothing
                     } else if (newClaimOwner.equals(p.getUniqueId())) {
                         // Entered the own claim
+                        if (SESSION_FLIGHT.contains(p.getUniqueId()) || TEMPORARY_FLIGHT.contains(p.getUniqueId())) {
+                            // Regain flying powers
+                            p.setAllowFlight(true);
+                        }
                         sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_OWN_CLAIM, playerLocale), NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
@@ -886,19 +898,19 @@ public class PresenceBukkit extends JavaPlugin {
                     }
                 } else {
                     // Was in wild before, but now it is not anymore
-                    UUID newClaimId = newClaim.getPlayer();
-                    PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimId);
-                    if (newClaimId.equals(p.getUniqueId())) {
+                    UUID newClaimOwner = newClaim.getPlayer();
+                    PLAYER_LOCATIONS.put(p.getUniqueId(), newClaimOwner);
+                    if (newClaimOwner.equals(p.getUniqueId())) {
                         // Entered the own claim
-                        if (SESSION_FLIGHT.contains(p.getUniqueId())) {
+                        if (SESSION_FLIGHT.contains(p.getUniqueId()) || TEMPORARY_FLIGHT.contains(p.getUniqueId())) {
                             // Regain flying powers
                             p.setAllowFlight(true);
                         }
                         sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_OWN_CLAIM, playerLocale), NamedTextColor.DARK_GREEN);
                     } else {
                         // Entered different claim
-                        OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimId);
-                        if (!data.getChunkGroupManager().isTrusted(newClaimId, p.getUniqueId())) {
+                        OfflinePlayer claimOwner = Bukkit.getOfflinePlayer(newClaimOwner);
+                        if (!data.getChunkGroupManager().isTrusted(newClaimOwner, p.getUniqueId())) {
                             sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.YELLOW);
                         } else {
                             sendActionbarMessage(p, i18n.get(I18NKey.MOVEMENT_TO_FOREIGN_CLAIM, playerLocale, claimOwner.getName()), NamedTextColor.DARK_BLUE);
