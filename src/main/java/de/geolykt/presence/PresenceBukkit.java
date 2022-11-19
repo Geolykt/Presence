@@ -79,6 +79,7 @@ public class PresenceBukkit extends JavaPlugin {
     private static final Collection<UUID> TEMPORARY_FLIGHT = new HashSet<>(); // Don't ask what the difference between these two sets are
     private static final Collection<UUID> SESSION_FLIGHT = new HashSet<>();
     private static final Map<UUID, Long> GRACEFUL_LAND = new HashMap<>();
+    private static final Collection<UUID> RECONNECTED_PLAYERS = new HashSet<>(); // Note: the reconnected_players field is only used to re-trigger flight between disconnections and should not be used for anything else.
 
     @NotNull
     private static final JoinConfiguration SPACE_WITH_SPACE_SUFFIX = JoinConfiguration.builder()
@@ -699,7 +700,7 @@ public class PresenceBukkit extends JavaPlugin {
         if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
-        GRACEFUL_LAND.put(player.getUniqueId(), System.currentTimeMillis());
+        addGracefulLand(player.getUniqueId(), 10_000L);
         player.setFlying(false);
         player.setAllowFlight(false);
     }
@@ -817,21 +818,23 @@ public class PresenceBukkit extends JavaPlugin {
             @EventHandler
             public void playerJoin(PlayerJoinEvent evt) {
                 // reset scoreboard
-                Score s = SCOREBOARD_CLAIM_OWNER.get(evt.getPlayer().getUniqueId());
+                UUID playerUUID = evt.getPlayer().getUniqueId();
+                Score s = SCOREBOARD_CLAIM_OWNER.get(playerUUID);
                 if (s != null) {
                     Scoreboard sb = s.getScoreboard();
                     if (sb != null) {
                         evt.getPlayer().setScoreboard(sb);
                     } else {
-                        SCOREBOARD_CLAIM_OWNER.remove(evt.getPlayer().getUniqueId());
+                        SCOREBOARD_CLAIM_OWNER.remove(playerUUID);
                     }
                 }
+                RECONNECTED_PLAYERS.add(playerUUID);
             }
 
             @EventHandler
             public void playerHurt(EntityDamageEvent evt) {
                 if (evt.getEntity() instanceof Player && evt.getCause() == DamageCause.FALL) {
-                    long landingPoint = GRACEFUL_LAND.getOrDefault(evt.getEntity().getUniqueId(), -1L) + 10000;
+                    long landingPoint = GRACEFUL_LAND.getOrDefault(evt.getEntity().getUniqueId(), -1L);
                     if (landingPoint > System.currentTimeMillis()) {
                         GRACEFUL_LAND.remove(evt.getEntity().getUniqueId());
                         evt.setCancelled(true);
@@ -859,6 +862,8 @@ public class PresenceBukkit extends JavaPlugin {
                 // it is unlikely that it will be changed due to them not being exactly
                 // sure about mojang's motives about the change.
                 boolean forceUpdate = oldWorld != null && !oldWorld.equals(world);
+                // Force an update of the fly status if the player reconnected in this or the last tick
+                forceUpdate |= RECONNECTED_PLAYERS.remove(p.getUniqueId());
                 PlayerAttachedScore newClaim = data.getOwner(world, chunkX, chunkY);
                 if (newClaim == null) {
                     // now in the wild
@@ -1113,5 +1118,18 @@ public class PresenceBukkit extends JavaPlugin {
     @Contract(pure = true)
     LocalisationContainer getI18N() {
         return i18n;
+    }
+
+    /**
+     * Adds a player to the list of players that have the "graceful" land behaviour.
+     * This behaviour means that the player will not receive fall damage until the TTL (time-to-live)
+     * of this action runs out. This methods is meant to prevent "accidental" player suicides, mostly
+     * caused by the player disconnecting while in flight, the server restarting or the player moving between claims.
+     *
+     * @param player The affected player
+     * @param ttl The time-to-live in milliseconds
+     */
+    public static void addGracefulLand(@NotNull UUID player, long ttl) {
+        GRACEFUL_LAND.put(player, System.currentTimeMillis() + ttl);
     }
 }
